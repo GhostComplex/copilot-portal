@@ -148,11 +148,13 @@ export async function buildCopilotHeaders(copilotToken: string): Promise<Record<
 export async function buildGitHubHeaders(): Promise<Record<string, string>> {
   const editorVersion = await fetchVSCodeVersion();
   return {
+    "Content-Type": "application/json",
     Accept: "application/json",
     "User-Agent": USER_AGENT,
     "Editor-Version": editorVersion,
     "Editor-Plugin-Version": EDITOR_PLUGIN_VERSION,
     "X-GitHub-Api-Version": API_VERSION,
+    "X-VSCode-User-Agent-Library-Version": "electron-fetch",
   };
 }
 
