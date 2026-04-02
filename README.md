@@ -1,4 +1,4 @@
-# Copilot Shadow
+# Copilot Gate
 
 Turn your GitHub Copilot subscription into your own API endpoint.
 
@@ -7,7 +7,7 @@ Turn your GitHub Copilot subscription into your own API endpoint.
 ### 1. Get OAuth Token
 
 ```bash
-npx copilot-shadow auth
+npx copilot-gate auth
 ```
 
 This opens GitHub Device Flow — enter the code at github.com/login/device, then you'll get a token like `<your_copilot_token>`.
@@ -15,8 +15,8 @@ This opens GitHub Device Flow — enter the code at github.com/login/device, the
 ### 2. Deploy to Cloudflare Workers
 
 ```bash
-git clone https://github.com/GhostComplex/copilot-shadow
-cd copilot-shadow
+git clone https://github.com/GhostComplex/copilot-gate
+cd copilot-gate
 pnpm install
 pnpm deploy
 ```
@@ -79,7 +79,7 @@ Request with token → Service exchanges for Copilot Token (cached ~30min)
 
 ## Security
 
-- **OAuth Token**: Stored on your machine (`~/.copilot-shadow/token` if you use `--save`)
+- **OAuth Token**: Stored on your machine (`~/.copilot-gate/token` if you use `--save`)
 - **Minimal Scope**: Only `read:user` permission
 - **Revoke Anytime**: github.com/settings/applications → Revoke "Visual Studio Code"
 - **Server Storage**: None — in-memory Copilot Token cache only (cleared on restart)
@@ -87,7 +87,7 @@ Request with token → Service exchanges for Copilot Token (cached ~30min)
 ## Project Structure
 
 ```
-copilot-shadow/
+copilot-gate/
 ├── packages/
 │   ├── service/     # CF Workers API proxy
 │   └── cli/         # OAuth Device Flow CLI
@@ -106,12 +106,12 @@ copilot-shadow/
 
 ```bash
 # Clone and install
-git clone https://github.com/GhostComplex/copilot-shadow
-cd copilot-shadow
+git clone https://github.com/GhostComplex/copilot-gate
+cd copilot-gate
 pnpm install
 
 # Build CLI
-pnpm --filter @copilot-shadow/cli build
+pnpm --filter @copilot-gate/cli build
 
 # Get OAuth token (one-time)
 node packages/cli/dist/index.js auth
@@ -142,7 +142,7 @@ curl http://localhost:8787/v1/chat/completions \
 
 ```bash
 # Build
-pnpm --filter @copilot-shadow/cli build
+pnpm --filter @copilot-gate/cli build
 
 # Run
 node packages/cli/dist/index.js auth          # Get token

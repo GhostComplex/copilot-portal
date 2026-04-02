@@ -65,7 +65,7 @@ export async function auth(options: { save?: boolean; refresh?: boolean }) {
 
   // Step 4: Output/save token
   if (options.save) {
-    const tokenPath = join(homedir(), ".copilot-shadow", "token");
+    const tokenPath = join(homedir(), ".copilot-gate", "token");
     await mkdir(dirname(tokenPath), { recursive: true });
     await writeFile(tokenPath, token, { mode: 0o600 });
     console.log(`Token saved to: ${tokenPath}`);

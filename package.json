@@ -1,5 +1,5 @@
 {
-  "name": "copilot-shadow",
+  "name": "copilot-gate",
   "version": "0.1.0",
   "description": "Turn your GitHub Copilot subscription into your own API endpoint",
   "private": true,
@@ -7,8 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --filter @copilot-shadow/service dev",
-    "deploy": "pnpm --filter @copilot-shadow/service deploy",
+    "dev": "pnpm --filter @copilot-gate/service dev",
+    "deploy": "pnpm --filter @copilot-gate/service deploy",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",

@@ -1,4 +1,4 @@
-# Copilot Shadow PRD
+# Copilot Gate PRD
 
 > Turn your GitHub Copilot subscription into your own API endpoint.
 
@@ -7,8 +7,8 @@
 A **stateless** API proxy that forwards requests to GitHub Copilot. Users authenticate via OAuth Device Flow, get a token, and pass it with every request — no server-side storage.
 
 **Two components:**
-- **`@copilot-shadow/service`** — Stateless API proxy (CF Workers)
-- **`@copilot-shadow/cli`** — CLI to obtain OAuth token via Device Flow
+- **`@copilot-gate/service`** — Stateless API proxy (CF Workers)
+- **`@copilot-gate/cli`** — CLI to obtain OAuth token via Device Flow
 
 ## Architecture
 
@@ -16,7 +16,7 @@ A **stateless** API proxy that forwards requests to GitHub Copilot. Users authen
 ┌─────────────────────────────────────────────────────────────┐
 │                        First Time Setup                      │
 │                                                              │
-│  $ npx copilot-shadow auth                                  │
+│  $ npx copilot-gate auth                                  │
 │                                                              │
 │  → Visit https://github.com/login/device                    │
 │  → Enter code: XXXX-XXXX                                    │
@@ -31,7 +31,7 @@ A **stateless** API proxy that forwards requests to GitHub Copilot. Users authen
 │    Authorization: Bearer <your_copilot_token>               │
 │                              │                               │
 │                              ▼                               │
-│  Copilot Shadow (CF Workers)                                │
+│  Copilot Gate (CF Workers)                                │
 │    1. OAuth Token from header                               │
 │    2. Exchange for Copilot Token (cached ~30min)            │
 │    3. Forward to api.githubcopilot.com                      │
@@ -69,9 +69,9 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 
 | Feature | Description |
 |---------|-------------|
-| **Device Flow** | `npx copilot-shadow auth` |
+| **Device Flow** | `npx copilot-gate auth` |
 | **Token Output** | Prints token to stdout |
-| **Optional Save** | `--save` writes to `~/.copilot-shadow/token` |
+| **Optional Save** | `--save` writes to `~/.copilot-gate/token` |
 
 ## API Endpoints
 
@@ -102,9 +102,9 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 
 ### M1: Auth CLI ✅
 
-- [x] `npx copilot-shadow auth` — Device Flow
+- [x] `npx copilot-gate auth` — Device Flow
 - [x] `--save` flag to persist token
-- [x] `npx copilot-shadow token` — show saved token
+- [x] `npx copilot-gate token` — show saved token
 - [x] Monorepo setup (pnpm workspaces)
 
 ### M2: Anthropic Format
@@ -115,5 +115,5 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 
 ### M3: Polish
 
-- [ ] npm publish (`npx copilot-shadow`)
+- [ ] npm publish (`npx copilot-gate`)
 - [ ] Azure Functions / Container Apps support

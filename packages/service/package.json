@@ -1,7 +1,7 @@
 {
-  "name": "@copilot-shadow/service",
+  "name": "@copilot-gate/service",
   "version": "0.1.0",
-  "description": "Copilot Shadow - CF Workers API proxy",
+  "description": "Copilot Gate - CF Workers API proxy",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
