@@ -8,11 +8,11 @@ import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import {
   getCopilotToken,
+  createChatCompletions,
   clearTokenCache,
   isTokenValid,
-} from "../../services/github/get-copilot-token";
-import { createChatCompletions } from "../../services/copilot/create-chat-completions";
-import { TokenExchangeError } from "../../lib/error";
+  TokenExchangeError,
+} from "../../services/copilot";
 import { extractToken } from "../../lib/utils";
 import { transformSSE } from "../../lib/sse";
 import type { AnthropicMessagesPayload } from "./anthropic-types";
@@ -27,7 +27,7 @@ import {
   type OpenAIChatCompletionChunk,
 } from "./stream-translation";
 
-export async function handleCompletion(c: Context) {
+export async function handleMessages(c: Context) {
   // 1. Extract GitHub token
   const githubToken = extractToken(c.req.header("Authorization"));
   if (!githubToken) {

@@ -2,24 +2,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../src/index";
 
 // Mock services
-vi.mock("../src/services/github/get-copilot-token", () => ({
+vi.mock("../src/services/copilot", () => ({
   getCopilotToken: vi.fn(),
+  createChatCompletions: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),
+  TokenExchangeError: class TokenExchangeError extends Error {
+    statusCode: number;
+    constructor(message: string, statusCode: number) {
+      super(message);
+      this.statusCode = statusCode;
+    }
+  },
 }));
 
-vi.mock("../src/services/copilot/create-chat-completions", () => ({
-  createChatCompletions: vi.fn(),
-}));
-
-import { getCopilotToken } from "../src/services/github/get-copilot-token";
-import { createChatCompletions } from "../src/services/copilot/create-chat-completions";
-import { TokenExchangeError } from "../src/lib/error";
+import { getCopilotToken, createChatCompletions, TokenExchangeError } from "../src/services/copilot";
 
 const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
-const mockCreateChatCompletions = createChatCompletions as ReturnType<
-  typeof vi.fn
->;
+const mockCreateChatCompletions = createChatCompletions as ReturnType<typeof vi.fn>;
 
 describe("GET /health", () => {
   it("returns ok status", async () => {

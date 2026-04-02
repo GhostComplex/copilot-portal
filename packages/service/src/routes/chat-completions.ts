@@ -1,16 +1,16 @@
 /**
  * POST /v1/chat/completions — OpenAI-compatible chat completions passthrough
- *
- * Matches copilot-api's routes/chat-completions/handler.ts
  */
 
 import type { Context } from "hono";
-import { getCopilotToken } from "../../services/github/get-copilot-token";
-import { createChatCompletions } from "../../services/copilot/create-chat-completions";
-import { TokenExchangeError } from "../../lib/error";
-import { extractToken } from "../../lib/utils";
+import {
+  getCopilotToken,
+  createChatCompletions,
+  TokenExchangeError,
+} from "../services/copilot";
+import { extractToken } from "../lib/utils";
 
-export async function handleCompletion(c: Context) {
+export async function handleChatCompletion(c: Context) {
   // 1. Extract GitHub token
   const githubToken = extractToken(c.req.header("Authorization"));
   if (!githubToken) {
@@ -40,7 +40,6 @@ export async function handleCompletion(c: Context) {
   const ct = upstream.headers.get("Content-Type");
   if (ct) headers.set("Content-Type", ct);
 
-  // Streaming: if the upstream is SSE, pipe it through
   if (ct?.includes("text/event-stream")) {
     headers.set("Cache-Control", "no-cache");
     headers.set("Connection", "keep-alive");

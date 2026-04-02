@@ -1,12 +1,10 @@
 /**
  * Copilot Portal - API entry point
- *
- * Matches copilot-api's structure.
  */
 
 import { Hono } from "hono";
-import { handleCompletion as handleChatCompletion } from "./routes/chat-completions/handler";
-import { handleCompletion as handleMessages } from "./routes/messages/handler";
+import { handleChatCompletion } from "./routes/chat-completions";
+import { handleMessages } from "./routes/messages/handler";
 
 const app = new Hono();
 

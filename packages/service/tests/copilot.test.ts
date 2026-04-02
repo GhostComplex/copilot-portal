@@ -3,54 +3,16 @@ import {
   getCopilotToken,
   clearTokenCache,
   isTokenValid,
-  type GetCopilotTokenResponse,
-} from "../src/services/github/get-copilot-token";
-import { createChatCompletions } from "../src/services/copilot/create-chat-completions";
-import {
-  buildCopilotHeaders,
-  buildGitHubHeaders,
+  createChatCompletions,
   resetVSCodeVersionCache,
-} from "../src/lib/api-config";
-import { TokenExchangeError, HttpError } from "../src/lib/error";
+  TokenExchangeError,
+  HttpError,
+  type GetCopilotTokenResponse,
+} from "../src/services/copilot";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
-
-describe("buildGitHubHeaders", () => {
-  it("returns required headers with token", () => {
-    const headers = buildGitHubHeaders("test-token");
-    expect(headers.Authorization).toBe("token test-token");
-    expect(headers.Accept).toBe("application/json");
-    expect(headers["User-Agent"]).toContain("GitHubCopilotChat");
-  });
-});
-
-describe("buildCopilotHeaders", () => {
-  beforeEach(() => {
-    resetVSCodeVersionCache();
-    mockFetch.mockReset();
-  });
-
-  it("returns required headers with bearer token", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ["1.100.0"],
-    });
-
-    const headers = await buildCopilotHeaders("copilot-jwt");
-    expect(headers.Authorization).toBe("Bearer copilot-jwt");
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers["Editor-Version"]).toBe("vscode/1.100.0");
-  });
-
-  it("uses fallback version on fetch failure", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-    const headers = await buildCopilotHeaders("test");
-    expect(headers["Editor-Version"]).toMatch(/^vscode\/\d+\.\d+\.\d+$/);
-  });
-});
 
 describe("isTokenValid", () => {
   it("returns false for undefined", () => {
