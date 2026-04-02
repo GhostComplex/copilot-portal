@@ -1,0 +1,29 @@
+services:
+  copilot-api:
+    image: ghcr.io/ericc-ch/copilot-api:latest
+    container_name: copilot-api
+    command: start --port 4142
+    environment:
+      - GH_TOKEN=${GH_TOKEN}  # Your GitHub token for Copilot API
+    volumes:
+      - copilot-data:/root/.local/share/copilot-api
+    restart: unless-stopped
+    # Only accessible from within Docker network, not exposed to host
+    expose:
+      - "4142"
+
+  copilot-gate:
+    build: .
+    container_name: copilot-gate
+    ports:
+      - "4141:4141"
+    environment:
+      - UPSTREAM=http://copilot-api:4142
+      - ALLOWED_USER=${ALLOWED_USER}  # GitHub username allowed to access
+      - VERBOSE=${VERBOSE:-false}
+    depends_on:
+      - copilot-api
+    restart: unless-stopped
+
+volumes:
+  copilot-data:
