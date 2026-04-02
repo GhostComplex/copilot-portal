@@ -21,23 +21,6 @@ When using `copilot-api` across multiple machines, each machine would need to ru
 
 ## Quick Start
 
-### Option 1: Docker Compose (Recommended)
-
-```bash
-# Clone the repo
-git clone https://github.com/GhostComplex/shadow-gate.git
-cd shadow-gate
-
-# Configure
-cp .env.example .env
-# Edit .env with your settings
-
-# Start both copilot-api and shadow-gate
-docker compose up -d
-```
-
-### Option 2: Separate Processes (Development)
-
 ```bash
 # Terminal 1: Start copilot-api (default port 4141)
 npx copilot-api@latest start
