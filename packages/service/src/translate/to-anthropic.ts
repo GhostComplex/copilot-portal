@@ -6,8 +6,8 @@ import type {
   AnthropicStreamEvent,
   AnthropicStreamState,
   AnthropicResponse,
-} from "./anthropic-types";
-import { mapStopReason } from "./non-stream-translation";
+} from "../types/anthropic";
+import { mapStopReason } from "./to-openai";
 
 // ============================================================================
 // OpenAI Chunk Types

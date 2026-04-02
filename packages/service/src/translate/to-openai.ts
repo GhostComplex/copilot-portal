@@ -13,7 +13,7 @@ import type {
   AnthropicToolChoice,
   AnthropicResponse,
   AnthropicAssistantContentBlock,
-} from "./anthropic-types";
+} from "../types/anthropic";
 
 // ============================================================================
 // OpenAI Types (subset needed for translation)

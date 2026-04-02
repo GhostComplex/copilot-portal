@@ -8,13 +8,13 @@ import {
   translateToAnthropic,
   translateModelName,
   type OpenAIChatCompletionResponse,
-} from "../src/routes/messages/non-stream-translation";
+} from "../src/translate/to-openai";
 import {
   translateChunkToAnthropicEvents,
   createStreamState,
   type OpenAIChatCompletionChunk,
-} from "../src/routes/messages/stream-translation";
-import type { AnthropicMessagesPayload } from "../src/routes/messages/anthropic-types";
+} from "../src/translate/to-anthropic";
+import type { AnthropicMessagesPayload } from "../src/types/anthropic";
 
 describe("translateModelName", () => {
   it("normalizes claude-sonnet-4 versioned names", () => {
