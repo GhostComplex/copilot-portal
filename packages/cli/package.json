@@ -17,5 +17,7 @@
     "format": "prettier --write src",
     "format:check": "prettier --check src"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/node": "22.15.2"
+  }
 }
