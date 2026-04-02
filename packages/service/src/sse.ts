@@ -28,6 +28,7 @@ function lineStream(): TransformStream<string, string> {
 /**
  * A TransformStream that parses SSE format, extracting event type and data.
  * Handles both `event:` and `data:` fields per SSE spec.
+ * Note: Per spec, space after colon is optional (e.g., both `data: x` and `data:x` are valid).
  */
 function sseParseStream(): TransformStream<
   string,
@@ -37,12 +38,16 @@ function sseParseStream(): TransformStream<
 
   return new TransformStream({
     transform(line, controller) {
-      if (line.startsWith("event: ")) {
-        currentEvent = line.slice(7).trim();
-      } else if (line.startsWith("data: ")) {
+      if (line.startsWith("event:")) {
+        // Handle both "event: x" and "event:x"
+        const value = line[6] === " " ? line.slice(7) : line.slice(6);
+        currentEvent = value.trim();
+      } else if (line.startsWith("data:")) {
+        // Handle both "data: x" and "data:x"
+        const data = line[5] === " " ? line.slice(6) : line.slice(5);
         controller.enqueue({
           event: currentEvent || undefined,
-          data: line.slice(6),
+          data,
         });
         currentEvent = "";
       }

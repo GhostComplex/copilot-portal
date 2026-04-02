@@ -90,6 +90,20 @@ describe("parseSSE", () => {
 
     expect(events).toEqual([{ event: undefined, data: "actual" }]);
   });
+
+  it("handles data without space after colon (SSE spec)", async () => {
+    const stream = createStream([
+      "data:no-space\n",
+      "event:myevent\n",
+      "data:with-event\n",
+    ]);
+    const events = await collectStream(parseSSE(stream));
+
+    expect(events).toEqual([
+      { event: undefined, data: "no-space" },
+      { event: "myevent", data: "with-event" },
+    ]);
+  });
 });
 
 describe("transformSSE", () => {

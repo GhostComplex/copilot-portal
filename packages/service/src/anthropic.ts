@@ -450,17 +450,41 @@ export function translateToAnthropic(
 ): AnthropicResponse {
   const content: AnthropicAssistantContentBlock[] = [];
 
+  // Guard against empty/missing choices
+  if (!response.choices?.length) {
+    return {
+      id: response.id,
+      type: "message",
+      role: "assistant",
+      model: response.model,
+      content: [],
+      stop_reason: null,
+      stop_sequence: null,
+      usage: {
+        input_tokens: response.usage?.prompt_tokens ?? 0,
+        output_tokens: response.usage?.completion_tokens ?? 0,
+      },
+    };
+  }
+
   for (const choice of response.choices) {
     if (choice.message.content) {
       content.push({ type: "text", text: choice.message.content });
     }
     if (choice.message.tool_calls) {
       for (const tc of choice.message.tool_calls) {
+        // Safely parse tool arguments - fall back to empty object on malformed JSON
+        let input: Record<string, unknown>;
+        try {
+          input = JSON.parse(tc.function.arguments) as Record<string, unknown>;
+        } catch {
+          input = {};
+        }
         content.push({
           type: "tool_use",
           id: tc.id,
           name: tc.function.name,
-          input: JSON.parse(tc.function.arguments) as Record<string, unknown>,
+          input,
         });
       }
     }

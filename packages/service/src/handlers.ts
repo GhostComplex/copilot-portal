@@ -105,7 +105,21 @@ export async function messages(c: Context) {
   }
 
   // 3. Parse Anthropic request and translate to OpenAI format
-  const anthropicPayload = await c.req.json<AnthropicMessagesPayload>();
+  let anthropicPayload: AnthropicMessagesPayload;
+  try {
+    anthropicPayload = await c.req.json<AnthropicMessagesPayload>();
+  } catch {
+    return c.json(
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "Invalid JSON in request body",
+        },
+      },
+      400
+    );
+  }
   const openaiPayload = translateToOpenAI(anthropicPayload);
 
   // 4. Forward to Copilot API
@@ -114,7 +128,19 @@ export async function messages(c: Context) {
     JSON.stringify(openaiPayload)
   );
 
-  // 5. Handle non-streaming response
+  // 5. Handle upstream errors
+  if (!upstream.ok) {
+    const errorText = await upstream.text();
+    return c.json(
+      {
+        type: "error",
+        error: { type: "api_error", message: errorText },
+      },
+      upstream.status as 400 | 401 | 403 | 500 | 502
+    );
+  }
+
+  // 6. Handle non-streaming response
   if (!anthropicPayload.stream) {
     const openaiResponse =
       (await upstream.json()) as OpenAIChatCompletionResponse;
@@ -122,15 +148,16 @@ export async function messages(c: Context) {
     return c.json(anthropicResponse);
   }
 
-  // 6. Handle streaming response
+  // 7. Handle streaming response
   if (!upstream.body) {
     return c.json({ error: "No upstream body" }, 502);
   }
 
   const state = createStreamState();
+  const body = upstream.body;
 
   return streamSSE(c, async (stream) => {
-    const events = transformSSE(upstream.body!, (_event, data) => {
+    const events = transformSSE(body, (_event, data) => {
       const trimmed = data.trim();
       if (trimmed === "[DONE]" || !trimmed) return null;
 

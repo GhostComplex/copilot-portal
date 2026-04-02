@@ -456,3 +456,51 @@ describe("translateChunkToAnthropicEvents", () => {
     expect(events2.some((e) => e.type === "content_block_delta")).toBe(true);
   });
 });
+
+describe("edge cases", () => {
+  it("handles empty choices array", () => {
+    const response: OpenAIChatCompletionResponse = {
+      id: "resp_empty",
+      model: "claude-sonnet-4",
+      choices: [],
+      usage: { prompt_tokens: 5, completion_tokens: 0 },
+    };
+
+    const result = translateToAnthropic(response);
+
+    expect(result.content).toEqual([]);
+    expect(result.stop_reason).toBe(null);
+    expect(result.usage).toEqual({ input_tokens: 5, output_tokens: 0 });
+  });
+
+  it("handles malformed tool call arguments JSON", () => {
+    const response: OpenAIChatCompletionResponse = {
+      id: "resp_bad",
+      model: "claude-sonnet-4",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_bad",
+                type: "function",
+                function: { name: "broken", arguments: "not valid json {" },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    const result = translateToAnthropic(response);
+
+    // Should not throw, should fall back to empty object
+    expect(result.content).toEqual([
+      { type: "tool_use", id: "call_bad", name: "broken", input: {} },
+    ]);
+  });
+});
