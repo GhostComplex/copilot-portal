@@ -1,33 +1,30 @@
 {
-  "name": "copilot-shadow",
+  "name": "copilot-gate",
   "version": "0.1.0",
   "description": "Turn your GitHub Copilot subscription into your own API endpoint",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests",
-    "lint:fix": "eslint src tests --fix",
-    "format": "prettier --write src tests",
-    "format:check": "prettier --check src tests",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
-  },
-  "dependencies": {
-    "hono": "4.12.9"
+    "dev": "pnpm --filter @copilot-gate/service dev",
+    "deploy": "pnpm --filter @copilot-gate/service deploy",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "format": "pnpm -r format",
+    "format:check": "pnpm -r format:check",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20260402.1",
     "@typescript-eslint/eslint-plugin": "8.58.0",
     "@typescript-eslint/parser": "8.58.0",
-    "@vitest/coverage-v8": "4.1.2",
     "eslint": "10.1.0",
     "eslint-config-prettier": "10.1.8",
     "prettier": "3.8.1",
-    "typescript": "6.0.2",
-    "vitest": "4.1.2",
-    "wrangler": "4.79.0"
-  }
+    "typescript": "6.0.2"
+  },
+  "packageManager": "pnpm@10.10.0"
 }

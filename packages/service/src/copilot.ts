@@ -20,7 +20,8 @@ const API_VERSION = "2025-10-01";
 
 const GITHUB_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const COPILOT_CHAT_URL = "https://api.githubcopilot.com/chat/completions";
-const VSCODE_RELEASES_URL = "https://update.code.visualstudio.com/api/releases/stable";
+const VSCODE_RELEASES_URL =
+  "https://update.code.visualstudio.com/api/releases/stable";
 
 const REFRESH_MARGIN_SEC = 5 * 60; // refresh token 5 min before expiry
 const VSCODE_VERSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // cache VS Code version for 7 days
@@ -53,7 +54,11 @@ async function fetchVSCodeVersion(): Promise<string> {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
     const releases = (await resp.json()) as string[];
-    if (Array.isArray(releases) && releases.length > 0 && typeof releases[0] === "string") {
+    if (
+      Array.isArray(releases) &&
+      releases.length > 0 &&
+      typeof releases[0] === "string"
+    ) {
       cachedVSCodeVersion = `vscode/${releases[0]}`;
       vscodeVersionExpiresAt = now + VSCODE_VERSION_TTL_MS;
       return cachedVSCodeVersion;
@@ -61,7 +66,7 @@ async function fetchVSCodeVersion(): Promise<string> {
     throw new Error("Invalid response format");
   } catch (e) {
     console.warn(
-      `Failed to fetch VS Code version: ${e instanceof Error ? e.message : String(e)}, using fallback`,
+      `Failed to fetch VS Code version: ${e instanceof Error ? e.message : String(e)}, using fallback`
     );
     // Use fallback with shorter TTL so we retry sooner
     cachedVSCodeVersion = FALLBACK_EDITOR_VERSION;
@@ -78,7 +83,7 @@ async function fetchVSCodeVersion(): Promise<string> {
 export class HttpError extends Error {
   constructor(
     message: string,
-    public statusCode: number,
+    public statusCode: number
   ) {
     super(message);
     this.name = "HttpError";
@@ -107,7 +112,7 @@ function isClientError(e: unknown): boolean {
 export async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
-  baseDelayMs = 1000,
+  baseDelayMs = 1000
 ): Promise<T> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -119,7 +124,7 @@ export async function withRetry<T>(
 
       const delay = baseDelayMs * Math.pow(2, attempt);
       console.warn(
-        `Retry ${attempt + 1}/${maxRetries} after ${delay}ms: ${e instanceof Error ? e.message : String(e)}`,
+        `Retry ${attempt + 1}/${maxRetries} after ${delay}ms: ${e instanceof Error ? e.message : String(e)}`
       );
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -131,7 +136,9 @@ export async function withRetry<T>(
 // Headers builder
 // ---------------------------------------------------------------------------
 
-export async function buildCopilotHeaders(copilotToken: string): Promise<Record<string, string>> {
+export async function buildCopilotHeaders(
+  copilotToken: string
+): Promise<Record<string, string>> {
   const editorVersion = await fetchVSCodeVersion();
   return {
     Authorization: `Bearer ${copilotToken}`,
@@ -177,7 +184,10 @@ async function hashToken(token: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function isTokenValid(cached: CachedToken | undefined, now: number): boolean {
+export function isTokenValid(
+  cached: CachedToken | undefined,
+  now: number
+): boolean {
   return !!cached && cached.expiresAt - REFRESH_MARGIN_SEC > now;
 }
 
@@ -213,7 +223,7 @@ export async function getCopilotToken(githubToken: string): Promise<string> {
       const body = await res.text();
       throw new TokenExchangeError(
         `GitHub token exchange failed (${res.status}): ${body}`,
-        res.status,
+        res.status
       );
     }
 
@@ -239,7 +249,7 @@ export async function getCopilotToken(githubToken: string): Promise<string> {
  */
 export async function forwardChatCompletions(
   copilotToken: string,
-  body: string,
+  body: string
 ): Promise<Response> {
   const headers = await buildCopilotHeaders(copilotToken);
   return fetch(COPILOT_CHAT_URL, {

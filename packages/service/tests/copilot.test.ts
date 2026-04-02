@@ -27,13 +27,19 @@ describe("isTokenValid", () => {
 
   it("returns false when token expires within refresh margin", () => {
     const now = 1000;
-    const cached: CachedToken = { token: "abc", expiresAt: now + REFRESH_MARGIN_SEC - 1 };
+    const cached: CachedToken = {
+      token: "abc",
+      expiresAt: now + REFRESH_MARGIN_SEC - 1,
+    };
     expect(isTokenValid(cached, now)).toBe(false);
   });
 
   it("returns true when token is valid and outside refresh margin", () => {
     const now = 1000;
-    const cached: CachedToken = { token: "abc", expiresAt: now + REFRESH_MARGIN_SEC + 100 };
+    const cached: CachedToken = {
+      token: "abc",
+      expiresAt: now + REFRESH_MARGIN_SEC + 100,
+    };
     expect(isTokenValid(cached, now)).toBe(true);
   });
 
@@ -51,7 +57,7 @@ describe("buildCopilotHeaders", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(["1.90.0"]),
-      }),
+      })
     );
   });
 
@@ -98,7 +104,7 @@ describe("buildGitHubHeaders", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(["1.90.0"]),
-      }),
+      })
     );
   });
 
@@ -157,7 +163,9 @@ describe("withRetry", () => {
   });
 
   it("does not retry on 403 errors (TokenExchangeError)", async () => {
-    const fn = vi.fn().mockRejectedValue(new TokenExchangeError("Forbidden", 403));
+    const fn = vi
+      .fn()
+      .mockRejectedValue(new TokenExchangeError("Forbidden", 403));
 
     await expect(withRetry(fn, 3, 10)).rejects.toThrow("Forbidden");
     expect(fn).toHaveBeenCalledTimes(1);
@@ -238,7 +246,9 @@ describe("getCopilotToken", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(getCopilotToken("invalid-token")).rejects.toThrow(TokenExchangeError);
+    await expect(getCopilotToken("invalid-token")).rejects.toThrow(
+      TokenExchangeError
+    );
   });
 
   it("returns cached token on subsequent calls", async () => {
@@ -291,17 +301,22 @@ describe("forwardChatCompletions", () => {
         new Response('{"choices":[]}', {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }),
+        })
       );
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const response = await forwardChatCompletions("copilot-token", '{"messages":[]}');
+    const response = await forwardChatCompletions(
+      "copilot-token",
+      '{"messages":[]}'
+    );
     expect(response.status).toBe(200);
 
     // Verify second call was to Copilot API
     const secondCall = fetchMock.mock.calls[1];
-    expect(secondCall[0]).toBe("https://api.githubcopilot.com/chat/completions");
+    expect(secondCall[0]).toBe(
+      "https://api.githubcopilot.com/chat/completions"
+    );
     expect(secondCall[1].method).toBe("POST");
   });
 

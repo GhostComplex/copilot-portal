@@ -3,7 +3,11 @@
  */
 
 import type { Context } from "hono";
-import { getCopilotToken, forwardChatCompletions, TokenExchangeError } from "./copilot";
+import {
+  getCopilotToken,
+  forwardChatCompletions,
+  TokenExchangeError,
+} from "./copilot";
 import { extractToken } from "./utils";
 
 /**
@@ -31,7 +35,7 @@ export async function chatCompletions(c: Context) {
     if (err instanceof TokenExchangeError) {
       return c.json(
         { error: "Token exchange failed", detail: err.message },
-        err.statusCode as 401 | 403 | 500,
+        err.statusCode as 401 | 403 | 500
       );
     }
     throw err;

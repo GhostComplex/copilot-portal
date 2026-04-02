@@ -9,7 +9,7 @@ vi.mock("../src/copilot", () => ({
   TokenExchangeError: class TokenExchangeError extends Error {
     constructor(
       message: string,
-      public statusCode: number,
+      public statusCode: number
     ) {
       super(message);
       this.name = "TokenExchangeError";
@@ -17,10 +17,16 @@ vi.mock("../src/copilot", () => ({
   },
 }));
 
-import { getCopilotToken, forwardChatCompletions, TokenExchangeError } from "../src/copilot";
+import {
+  getCopilotToken,
+  forwardChatCompletions,
+  TokenExchangeError,
+} from "../src/copilot";
 
 const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
-const mockForwardChatCompletions = forwardChatCompletions as ReturnType<typeof vi.fn>;
+const mockForwardChatCompletions = forwardChatCompletions as ReturnType<
+  typeof vi.fn
+>;
 
 describe("health handler", () => {
   it("returns status ok", async () => {
@@ -69,7 +75,9 @@ describe("chatCompletions handler", () => {
   });
 
   it("returns error when token exchange fails", async () => {
-    mockGetCopilotToken.mockRejectedValue(new TokenExchangeError("Invalid token", 401));
+    mockGetCopilotToken.mockRejectedValue(
+      new TokenExchangeError("Invalid token", 401)
+    );
 
     const res = await app.request("/v1/chat/completions", {
       method: "POST",
@@ -88,7 +96,7 @@ describe("chatCompletions handler", () => {
       new Response(JSON.stringify({ choices: [] }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }),
+      })
     );
 
     const res = await app.request("/v1/chat/completions", {
@@ -97,14 +105,17 @@ describe("chatCompletions handler", () => {
         Authorization: "Bearer ghp_test123",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ model: "gpt-4", messages: [{ role: "user", content: "hi" }] }),
+      body: JSON.stringify({
+        model: "gpt-4",
+        messages: [{ role: "user", content: "hi" }],
+      }),
     });
 
     expect(res.status).toBe(200);
     expect(mockGetCopilotToken).toHaveBeenCalledWith("ghp_test123");
     expect(mockForwardChatCompletions).toHaveBeenCalledWith(
       "copilot-token-123",
-      expect.any(String),
+      expect.any(String)
     );
   });
 
@@ -114,7 +125,7 @@ describe("chatCompletions handler", () => {
       new Response("data: test\n\n", {
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
-      }),
+      })
     );
 
     const res = await app.request("/v1/chat/completions", {

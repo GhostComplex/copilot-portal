@@ -1,5 +1,5 @@
 /**
- * Copilot Shadow — Hono app on Cloudflare Workers.
+ * Copilot Gate — Hono app on Cloudflare Workers.
  *
  * Routes:
  *   GET  /health                  → health check

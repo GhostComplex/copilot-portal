@@ -1,0 +1,23 @@
+{
+  "name": "@copilot-gate/cli",
+  "version": "0.1.0",
+  "description": "Copilot Gate CLI - OAuth Device Flow authentication",
+  "bin": {
+    "copilot-gate": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.2"
+  }
+}
