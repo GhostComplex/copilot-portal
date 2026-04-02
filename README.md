@@ -61,8 +61,8 @@ const client = new OpenAI({
 | Endpoint | Description |
 |----------|-------------|
 | `POST /v1/chat/completions` | OpenAI Chat Completions format |
-| `POST /v1/messages` | Anthropic Messages format (M2) |
-| `GET /v1/models` | List available models (M2) |
+| `POST /v1/messages` | Anthropic Messages format |
+| `GET /v1/models` | List available models |
 | `GET /health` | Health check |
 
 ## How It Works

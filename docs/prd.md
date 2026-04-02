@@ -62,6 +62,7 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 | **Stateless** | No database, no KV. In-memory cache only. |
 | **Multi-tenant** | Anyone can use with their own OAuth token |
 | **OpenAI Compatible** | `/v1/chat/completions` endpoint |
+| **Anthropic Compatible** | `/v1/messages` endpoint |
 | **Streaming** | Full SSE streaming support |
 | **Token Caching** | In-memory Copilot token cache (~30min) |
 
@@ -78,6 +79,8 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 | Endpoint | Description |
 |----------|-------------|
 | `POST /v1/chat/completions` | OpenAI Chat Completions format |
+| `POST /v1/messages` | Anthropic Messages format |
+| `GET /v1/models` | List available models |
 | `GET /health` | Health check |
 
 ## Security
@@ -107,11 +110,11 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 - [x] `npx copilot-gate token` — show saved token
 - [x] Monorepo setup (pnpm workspaces)
 
-### M2: Anthropic Format
+### M2: Anthropic Format ✅
 
-- [ ] `/v1/messages` endpoint
-- [ ] Anthropic ↔ OpenAI message conversion
-- [ ] `/v1/models` endpoint
+- [x] `/v1/messages` endpoint
+- [x] Anthropic ↔ OpenAI message conversion
+- [x] `/v1/models` endpoint
 
 ### M3: Polish
 
