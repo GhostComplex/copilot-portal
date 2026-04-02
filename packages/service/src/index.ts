@@ -1,27 +1,17 @@
 /**
- * Copilot Portal — Hono app on Cloudflare Workers.
- *
- * Routes:
- *   GET  /health                  → health check
- *   POST /v1/chat/completions     → OpenAI-compatible chat completions passthrough
- *   POST /v1/messages             → Anthropic Messages API compatible endpoint
- *   GET  /v1/models               → List available models
+ * Copilot Portal - API entry point
  */
 
 import { Hono } from "hono";
-import {
-  health,
-  chatCompletions,
-  messages,
-  models,
-  notFound,
-} from "./handlers";
+import { health, chatCompletions, notFound, models } from "./handlers";
+import { handler as messagesHandler } from "./routes/messages/handler";
 
 const app = new Hono();
 
+// Routes
 app.get("/health", health);
 app.post("/v1/chat/completions", chatCompletions);
-app.post("/v1/messages", messages);
+app.post("/v1/messages", messagesHandler);
 app.get("/v1/models", models);
 app.all("*", notFound);
 

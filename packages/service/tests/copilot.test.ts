@@ -11,7 +11,7 @@ import {
   clearTokenCache,
   resetVSCodeVersionCache,
   type CachedToken,
-} from "../src/copilot";
+} from "../src/lib/copilot";
 
 describe("isTokenValid", () => {
   const REFRESH_MARGIN_SEC = 5 * 60; // must match copilot.ts

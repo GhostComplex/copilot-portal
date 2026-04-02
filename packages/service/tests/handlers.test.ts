@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { health, chatCompletions, notFound } from "../src/handlers";
 
 // Mock copilot module
-vi.mock("../src/copilot", () => ({
+vi.mock("../src/lib/copilot", () => ({
   getCopilotToken: vi.fn(),
   forwardChatCompletions: vi.fn(),
   TokenExchangeError: class TokenExchangeError extends Error {
@@ -21,7 +21,7 @@ import {
   getCopilotToken,
   forwardChatCompletions,
   TokenExchangeError,
-} from "../src/copilot";
+} from "../src/lib/copilot";
 
 const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
 const mockForwardChatCompletions = forwardChatCompletions as ReturnType<

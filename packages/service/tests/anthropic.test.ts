@@ -6,13 +6,15 @@ import { describe, it, expect } from "vitest";
 import {
   translateToOpenAI,
   translateToAnthropic,
+  translateModelName,
+  type OpenAIChatCompletionResponse,
+} from "../src/routes/messages/non-stream-translation";
+import {
   translateChunkToAnthropicEvents,
   createStreamState,
-  translateModelName,
-  type AnthropicMessagesPayload,
-  type OpenAIChatCompletionResponse,
   type OpenAIChatCompletionChunk,
-} from "../src/anthropic";
+} from "../src/routes/messages/stream-translation";
+import type { AnthropicMessagesPayload } from "../src/routes/messages/anthropic-types";
 
 describe("translateModelName", () => {
   it("normalizes claude-sonnet-4 versioned names", () => {

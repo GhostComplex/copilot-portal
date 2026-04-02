@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseSSE, transformSSE, type SSEEvent } from "../src/sse";
+import { parseSSE, transformSSE, type SSEEvent } from "../src/lib/sse";
 
 function createStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
