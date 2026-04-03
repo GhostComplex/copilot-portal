@@ -18,7 +18,10 @@ This opens GitHub Device Flow — enter the code at github.com/login/device, the
 git clone https://github.com/GhostComplex/copilot-portal
 cd copilot-portal
 pnpm install
-pnpm deploy
+
+# Deploy (from service directory)
+cd packages/service
+npx wrangler deploy
 ```
 
 ### 3. Use It
@@ -111,7 +114,7 @@ cd copilot-portal
 pnpm install
 
 # Build CLI
-pnpm --filter @copilot-portal/cli build
+pnpm --filter copilot-portal build
 
 # Get OAuth token (one-time)
 node packages/cli/dist/index.js auth
@@ -133,7 +136,7 @@ curl http://localhost:8787/v1/chat/completions \
 | Command | Description |
 |---------|-------------|
 | `pnpm dev` | Start service dev server |
-| `pnpm deploy` | Deploy to Cloudflare Workers |
+| `cd packages/service && npx wrangler deploy` | Deploy to Cloudflare Workers |
 | `pnpm test` | Run tests |
 | `pnpm lint` | Lint all packages |
 | `pnpm typecheck` | Type check all packages |
@@ -142,7 +145,7 @@ curl http://localhost:8787/v1/chat/completions \
 
 ```bash
 # Build
-pnpm --filter @copilot-portal/cli build
+pnpm --filter copilot-portal build
 
 # Run
 node packages/cli/dist/index.js auth          # Get token

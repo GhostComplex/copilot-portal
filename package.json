@@ -1,5 +1,5 @@
 {
-  "name": "copilot-portal",
+  "name": "copilot-portal-monorepo",
   "version": "0.1.0",
   "description": "Turn your GitHub Copilot subscription into your own API endpoint",
   "private": true,
