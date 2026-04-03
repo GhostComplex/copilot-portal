@@ -1,11 +1,14 @@
 {
-  "name": "@copilot-portal/service",
+  "name": "@copilot-portal/core",
   "version": "0.1.0",
-  "description": "Copilot Portal - CF Workers API proxy",
+  "description": "Copilot Portal shared API logic",
   "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
@@ -19,9 +22,7 @@
     "hono": "4.12.9"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20260402.1",
     "@vitest/coverage-v8": "4.1.2",
-    "vitest": "4.1.2",
-    "wrangler": "4.79.0"
+    "vitest": "4.1.2"
   }
 }

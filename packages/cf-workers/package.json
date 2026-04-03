@@ -1,0 +1,24 @@
+{
+  "name": "@copilot-portal/cf-workers",
+  "version": "0.1.0",
+  "description": "Copilot Portal Cloudflare Workers host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
+  },
+  "dependencies": {
+    "@copilot-portal/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260402.1",
+    "wrangler": "4.79.0"
+  }
+}

@@ -6,8 +6,10 @@
 
 A **stateless** API proxy that forwards requests to GitHub Copilot. Users authenticate via OAuth Device Flow, get a token, and pass it with every request — no server-side storage.
 
-**Two components:**
-- **`@copilot-portal/service`** — Stateless API proxy (CF Workers)
+**Four components:**
+- **`@copilot-portal/core`** — Shared API routes and Copilot proxy logic
+- **`@copilot-portal/cf-workers`** — Cloudflare Workers host
+- **`@copilot-portal/node-service`** — Node.js host for Azure/App Service
 - **`@copilot-portal/cli`** — CLI to obtain OAuth token via Device Flow
 
 ## Architecture
@@ -90,7 +92,7 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 | **OAuth Scope** | `read:user` only — minimal permissions |
 | **Token Storage** | User's machine only |
 | **Server Storage** | None — stateless, in-memory cache only |
-| **Transport** | HTTPS enforced by CF Workers |
+| **Transport** | HTTPS enforced by the deployed host |
 | **Revocation** | github.com/settings/applications → Revoke "Visual Studio Code" |
 
 ## Milestones

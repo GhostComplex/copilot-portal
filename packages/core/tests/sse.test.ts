@@ -104,12 +104,12 @@ describe("transformSSE", () => {
       'data: {"value": 2}\n\n',
     ]);
 
-    const mapper = (_event: string, data: string) => {
+    const mapper = (_event: string | undefined, data: string) => {
       const parsed = JSON.parse(data) as { value: number };
       return [{ event: "transformed", data: String(parsed.value * 10) }];
     };
 
-    const results: { event: string; data: string }[] = [];
+    const results: SSEEvent[] = [];
     for await (const event of transformSSE(stream, mapper)) {
       results.push(event);
     }
@@ -126,12 +126,12 @@ describe("transformSSE", () => {
       "data: keep2\n\n",
     ]);
 
-    const mapper = (_event: string, data: string) => {
+    const mapper = (_event: string | undefined, data: string) => {
       if (data === "skip") return null;
       return [{ event: "", data }];
     };
 
-    const results: { event: string; data: string }[] = [];
+    const results: SSEEvent[] = [];
     for await (const event of transformSSE(stream, mapper)) {
       results.push(event);
     }
@@ -149,7 +149,7 @@ describe("transformSSE", () => {
       { event: "b", data: "2" },
     ];
 
-    const results: { event: string; data: string }[] = [];
+    const results: SSEEvent[] = [];
     for await (const event of transformSSE(stream, mapper)) {
       results.push(event);
     }

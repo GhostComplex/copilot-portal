@@ -1,0 +1,26 @@
+{
+  "name": "@copilot-portal/node-service",
+  "version": "0.1.0",
+  "description": "Copilot Portal Node.js host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
+  },
+  "dependencies": {
+    "@copilot-portal/core": "workspace:*",
+    "@hono/node-server": "1.14.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.2",
+    "tsup": "8.5.0",
+    "tsx": "4.20.6"
+  }
+}

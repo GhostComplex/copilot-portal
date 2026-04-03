@@ -70,7 +70,7 @@ export interface SSEEvent {
 export function parseSSE(
   body: ReadableStream<Uint8Array>
 ): ReadableStream<SSEEvent> {
-  return body
+  return (body as ReadableStream<BufferSource>)
     .pipeThrough(new TextDecoderStream())
     .pipeThrough(lineStream())
     .pipeThrough(sseParseStream());

@@ -19,9 +19,8 @@ git clone https://github.com/GhostComplex/copilot-portal
 cd copilot-portal
 pnpm install
 
-# Deploy (from service directory)
-cd packages/service
-npx wrangler deploy
+# Deploy Cloudflare Workers
+pnpm deploy:cf
 ```
 
 ### 3. Use It
@@ -92,7 +91,9 @@ Request with token → Service exchanges for Copilot Token (cached ~30min)
 ```
 copilot-portal/
 ├── packages/
-│   ├── service/     # CF Workers API proxy
+│   ├── core/        # Shared API routes and Copilot proxy logic
+│   ├── cf-workers/  # Cloudflare Workers host
+│   ├── node-service/ # Node.js host for Azure/App Service
 │   └── cli/         # OAuth Device Flow CLI
 └── docs/
     └── prd.md       # Product Requirements Document
@@ -120,12 +121,16 @@ pnpm --filter copilot-portal build
 node packages/cli/dist/index.js auth
 # → Save the token somewhere
 
-# Start service dev server
+# Start Node service dev server
 pnpm dev
+# → Running at http://localhost:3000
+
+# Or start Cloudflare Workers dev server
+pnpm dev:cf
 # → Running at http://localhost:8787
 
-# Test
-curl http://localhost:8787/v1/chat/completions \
+# Test Node service
+curl http://localhost:3000/v1/chat/completions \
   -H "Authorization: Bearer <your_copilot_token>" \
   -H "Content-Type: application/json" \
   -d '{"model":"claude-opus-4.5","messages":[{"role":"user","content":"hi"}]}'
@@ -135,8 +140,10 @@ curl http://localhost:8787/v1/chat/completions \
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start service dev server |
-| `cd packages/service && npx wrangler deploy` | Deploy to Cloudflare Workers |
+| `pnpm build` | Build all workspace packages |
+| `pnpm dev` | Start Node service dev server |
+| `pnpm dev:cf` | Start Cloudflare Workers dev server |
+| `pnpm deploy:cf` | Deploy to Cloudflare Workers |
 | `pnpm test` | Run tests |
 | `pnpm lint` | Lint all packages |
 | `pnpm typecheck` | Type check all packages |

@@ -7,16 +7,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --filter @copilot-portal/service dev",
-    "deploy": "pnpm --filter @copilot-portal/service deploy",
+    "dev": "pnpm --filter @copilot-portal/node-service dev",
+    "dev:cf": "pnpm --filter @copilot-portal/cf-workers dev",
+    "deploy:cf": "pnpm --filter @copilot-portal/cf-workers run deploy",
     "build": "pnpm -r build",
+    "start": "pnpm --filter @copilot-portal/node-service start",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "lint:fix": "pnpm -r lint:fix",
-    "format": "pnpm -r format",
-    "format:check": "pnpm -r format:check",
-    "test": "pnpm -r test",
-    "test:coverage": "pnpm -r test:coverage"
+    "test": "pnpm -r test"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "8.58.0",
