@@ -1,5 +1,5 @@
 /**
- * Copilot Portal - API entry point
+ * Copilot Portal - Hono app (shared logic)
  */
 
 import { Hono } from "hono";
@@ -22,5 +22,4 @@ app.post("/v1/messages", handleMessages);
 // 404 fallback
 app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
-export { app };
 export default app;
