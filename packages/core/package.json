@@ -1,0 +1,33 @@
+{
+  "name": "@copilot-portal/core",
+  "version": "0.1.0",
+  "description": "Copilot Portal - shared core logic",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "hono": "4.12.9"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.2",
+    "@vitest/coverage-v8": "4.1.2",
+    "vitest": "4.1.2"
+  }
+}

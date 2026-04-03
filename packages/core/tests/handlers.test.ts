@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import app from "../src/index";
+import { createApp } from "../src/index";
 
 // Mock services
 vi.mock("../src/services/copilot", () => ({
@@ -23,6 +23,8 @@ import {
   getModels,
   TokenExchangeError,
 } from "../src/services/copilot";
+
+const app = createApp();
 
 const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
 const mockCreateChatCompletions = createChatCompletions as ReturnType<

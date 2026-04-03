@@ -1,0 +1,23 @@
+{
+  "name": "@copilot-portal/azure",
+  "version": "0.1.0",
+  "description": "Copilot Portal - Azure Functions deployment",
+  "private": true,
+  "main": "dist/functions/httpTrigger.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && func start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@azure/functions": "4.7.0",
+    "@copilot-portal/core": "workspace:*",
+    "@marplex/hono-azurefunc-adapter": "1.0.1",
+    "hono": "4.12.9"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.2",
+    "azure-functions-core-tools": "4.0.6610",
+    "typescript": "6.0.2"
+  }
+}

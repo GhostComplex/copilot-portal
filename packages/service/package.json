@@ -7,21 +7,17 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests",
-    "lint:fix": "eslint src tests --fix",
-    "format": "prettier --write src tests",
-    "format:check": "prettier --check src tests",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
   },
   "dependencies": {
+    "@copilot-portal/core": "workspace:*",
     "hono": "4.12.9"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20260402.1",
-    "@vitest/coverage-v8": "4.1.2",
-    "vitest": "4.1.2",
     "wrangler": "4.79.0"
   }
 }

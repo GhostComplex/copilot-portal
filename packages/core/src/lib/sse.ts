@@ -70,7 +70,8 @@ export interface SSEEvent {
 export function parseSSE(
   body: ReadableStream<Uint8Array>
 ): ReadableStream<SSEEvent> {
-  return body
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (body as any)
     .pipeThrough(new TextDecoderStream())
     .pipeThrough(lineStream())
     .pipeThrough(sseParseStream());

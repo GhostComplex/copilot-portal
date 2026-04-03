@@ -1,25 +1,9 @@
 /**
- * Copilot Portal - API entry point
+ * Copilot Portal - Cloudflare Workers entry point
  */
 
-import { Hono } from "hono";
-import { handleChatCompletion } from "./routes/chat-completions/handler";
-import { handleMessages } from "./routes/messages/handler";
-import { handleModels } from "./routes/models/handler";
+import { createApp } from "@copilot-portal/core";
 
-const app = new Hono();
-
-// Health check
-app.get("/health", (c) => c.json({ status: "ok" }));
-
-// OpenAI-compatible endpoints
-app.post("/v1/chat/completions", handleChatCompletion);
-app.get("/v1/models", handleModels);
-
-// Anthropic-compatible endpoints
-app.post("/v1/messages", handleMessages);
-
-// 404 fallback
-app.all("*", (c) => c.json({ error: "Not found" }, 404));
+const app = createApp();
 
 export default app;

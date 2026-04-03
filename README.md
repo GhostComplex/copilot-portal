@@ -92,10 +92,37 @@ Request with token → Service exchanges for Copilot Token (cached ~30min)
 ```
 copilot-portal/
 ├── packages/
-│   ├── service/     # CF Workers API proxy
+│   ├── core/        # Shared logic (routes, services, lib)
+│   ├── service/     # CF Workers deployment
+│   ├── azure/       # Azure Functions deployment
 │   └── cli/         # OAuth Device Flow CLI
 └── docs/
     └── prd.md       # Product Requirements Document
+```
+
+## Deployment Options
+
+### Cloudflare Workers
+
+```bash
+cd packages/service
+npx wrangler deploy
+```
+
+### Azure Functions
+
+For regions where `workers.dev` is blocked:
+
+```bash
+# One-time setup
+az group create --name copilot-portal-rg --location eastasia
+az storage account create --name copilotportalstorage --location eastasia --resource-group copilot-portal-rg --sku Standard_LRS
+az functionapp create --resource-group copilot-portal-rg --consumption-plan-location eastasia --runtime node --runtime-version 22 --functions-version 4 --name copilot-portal --storage-account copilotportalstorage
+
+# Deploy
+cd packages/azure
+pnpm build
+func azure functionapp publish copilot-portal
 ```
 
 ## Contributing
