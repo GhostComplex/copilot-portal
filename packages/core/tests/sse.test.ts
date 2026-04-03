@@ -25,7 +25,9 @@ async function collectParsedEvents(
 ): Promise<SSEEvent[]> {
   const events: SSEEvent[] = [];
 
-  for await (const event of transformSSE(stream, (type, data) => [{ event: type, data }])) {
+  for await (const event of transformSSE(stream, (type, data) => [
+    { event: type, data },
+  ])) {
     events.push(event);
   }
 

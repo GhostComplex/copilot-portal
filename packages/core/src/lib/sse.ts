@@ -67,9 +67,7 @@ export interface SSEEvent {
  * Uses Web Streams API with TransformStream pipeline:
  * bytes → text → lines → SSE events
  */
-function parseSSE(
-  body: ReadableStream<Uint8Array>
-): ReadableStream<SSEEvent> {
+function parseSSE(body: ReadableStream<Uint8Array>): ReadableStream<SSEEvent> {
   return (body as ReadableStream<BufferSource>)
     .pipeThrough(new TextDecoderStream())
     .pipeThrough(lineStream())
