@@ -120,3 +120,4 @@ The CLI uses GitHub's official Copilot OAuth App (`Iv1.b507a08c87ecfe98`) with m
 
 - [ ] npm publish (`npx copilot-portal`)
 - [ ] Azure Functions / Container Apps support
+- [ ] `/v1/embeddings` endpoint (OpenAI Embeddings API)
