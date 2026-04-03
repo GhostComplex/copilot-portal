@@ -21,6 +21,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Build core
+        run: pnpm --filter @copilot-portal/core build
+
       - name: Lint
         run: pnpm run lint
 
