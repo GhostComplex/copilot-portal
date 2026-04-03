@@ -7,8 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --filter @copilot-portal/service dev",
-    "deploy": "pnpm --filter @copilot-portal/service deploy",
+    "dev": "pnpm --filter @copilot-portal/cf-workers dev",
+    "deploy": "pnpm --filter @copilot-portal/cf-workers deploy",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",

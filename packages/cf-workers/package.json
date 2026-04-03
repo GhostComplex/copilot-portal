@@ -1,5 +1,5 @@
 {
-  "name": "@copilot-portal/service",
+  "name": "@copilot-portal/cf-workers",
   "version": "0.1.0",
   "description": "Copilot Portal - CF Workers API proxy",
   "private": true,

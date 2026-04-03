@@ -1,5 +1,5 @@
 {
-  "name": "@copilot-portal/azure",
+  "name": "@copilot-portal/azure-functions",
   "version": "0.1.0",
   "description": "Copilot Portal - Azure Functions deployment",
   "private": true,

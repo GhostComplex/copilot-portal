@@ -19,8 +19,8 @@ git clone https://github.com/GhostComplex/copilot-portal
 cd copilot-portal
 pnpm install
 
-# Deploy (from service directory)
-cd packages/service
+# Deploy (from cf-workers directory)
+cd packages/cf-workers
 npx wrangler deploy
 ```
 
@@ -92,12 +92,12 @@ Request with token → Service exchanges for Copilot Token (cached ~30min)
 ```
 copilot-portal/
 ├── packages/
-│   ├── core/        # Shared logic (routes, services, lib)
-│   ├── service/     # CF Workers deployment
-│   ├── azure/       # Azure Functions deployment
-│   └── cli/         # OAuth Device Flow CLI
+│   ├── core/             # Shared logic (routes, services, lib)
+│   ├── cf-workers/       # Cloudflare Workers deployment
+│   ├── azure-functions/  # Azure Functions deployment
+│   └── cli/              # OAuth Device Flow CLI
 └── docs/
-    └── prd.md       # Product Requirements Document
+    └── prd.md            # Product Requirements Document
 ```
 
 ## Deployment Options
@@ -105,7 +105,7 @@ copilot-portal/
 ### Cloudflare Workers
 
 ```bash
-cd packages/service
+cd packages/cf-workers
 npx wrangler deploy
 ```
 
@@ -120,7 +120,7 @@ az storage account create --name copilotportalstorage --location eastasia --reso
 az functionapp create --resource-group copilot-portal-rg --consumption-plan-location eastasia --runtime node --runtime-version 22 --functions-version 4 --name copilot-portal --storage-account copilotportalstorage
 
 # Deploy
-cd packages/azure
+cd packages/azure-functions
 pnpm build
 func azure functionapp publish copilot-portal
 ```
@@ -162,8 +162,8 @@ curl http://localhost:8787/v1/chat/completions \
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start service dev server |
-| `cd packages/service && npx wrangler deploy` | Deploy to Cloudflare Workers |
+| `pnpm dev` | Start CF Workers dev server |
+| `cd packages/cf-workers && npx wrangler deploy` | Deploy to Cloudflare Workers |
 | `pnpm test` | Run tests |
 | `pnpm lint` | Lint all packages |
 | `pnpm typecheck` | Type check all packages |
