@@ -1,5 +1,5 @@
 {
-  "name": "@copilot-portal/cli",
+  "name": "copilot-portal",
   "version": "0.1.0",
   "description": "Copilot Portal CLI - OAuth Device Flow authentication",
   "bin": {
@@ -8,6 +8,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
