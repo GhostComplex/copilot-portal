@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseSSE, transformSSE, type SSEEvent } from "../src/lib/sse";
+import { transformSSE, type SSEEvent } from "../src/lib/sse";
 
 function createStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -20,14 +20,24 @@ function createStream(chunks: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-describe("parseSSE", () => {
+async function collectParsedEvents(
+  stream: ReadableStream<Uint8Array>
+): Promise<SSEEvent[]> {
+  const events: SSEEvent[] = [];
+
+  for await (const event of transformSSE(stream, (type, data) => [
+    { event: type, data },
+  ])) {
+    events.push(event);
+  }
+
+  return events;
+}
+
+describe("SSE parsing", () => {
   it("parses simple data events", async () => {
     const stream = createStream(["data: hello\n\n", "data: world\n\n"]);
-    const events: SSEEvent[] = [];
-
-    for await (const event of parseSSE(stream)) {
-      events.push(event);
-    }
+    const events = await collectParsedEvents(stream);
 
     expect(events).toHaveLength(2);
     expect(events[0].data).toBe("hello");
@@ -36,11 +46,7 @@ describe("parseSSE", () => {
 
   it("parses events with event type", async () => {
     const stream = createStream(["event: message\ndata: test\n\n"]);
-    const events: SSEEvent[] = [];
-
-    for await (const event of parseSSE(stream)) {
-      events.push(event);
-    }
+    const events = await collectParsedEvents(stream);
 
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({ event: "message", data: "test" });
@@ -48,11 +54,7 @@ describe("parseSSE", () => {
 
   it("handles chunked data", async () => {
     const stream = createStream(["dat", "a: chunked\n", "\n"]);
-    const events: SSEEvent[] = [];
-
-    for await (const event of parseSSE(stream)) {
-      events.push(event);
-    }
+    const events = await collectParsedEvents(stream);
 
     expect(events).toHaveLength(1);
     expect(events[0].data).toBe("chunked");
@@ -61,11 +63,7 @@ describe("parseSSE", () => {
   it("emits separate events for consecutive data lines", async () => {
     // Our SSE parser emits one event per data line (doesn't merge multi-line)
     const stream = createStream(["data: line1\ndata: line2\n\n"]);
-    const events: SSEEvent[] = [];
-
-    for await (const event of parseSSE(stream)) {
-      events.push(event);
-    }
+    const events = await collectParsedEvents(stream);
 
     expect(events).toHaveLength(2);
     expect(events[0].data).toBe("line1");
@@ -74,11 +72,7 @@ describe("parseSSE", () => {
 
   it("ignores comments", async () => {
     const stream = createStream([": comment\ndata: actual\n\n"]);
-    const events: SSEEvent[] = [];
-
-    for await (const event of parseSSE(stream)) {
-      events.push(event);
-    }
+    const events = await collectParsedEvents(stream);
 
     expect(events).toHaveLength(1);
     expect(events[0].data).toBe("actual");
@@ -86,11 +80,7 @@ describe("parseSSE", () => {
 
   it("handles data without space after colon", async () => {
     const stream = createStream(["data:no-space\n\n"]);
-    const events: SSEEvent[] = [];
-
-    for await (const event of parseSSE(stream)) {
-      events.push(event);
-    }
+    const events = await collectParsedEvents(stream);
 
     expect(events).toHaveLength(1);
     expect(events[0].data).toBe("no-space");
