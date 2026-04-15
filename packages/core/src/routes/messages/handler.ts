@@ -27,6 +27,45 @@ import {
   type OpenAIChatCompletionChunk,
 } from "./stream-translation";
 
+/**
+ * Map OpenAI error codes to Anthropic error types.
+ */
+const OPENAI_CODE_TO_ANTHROPIC_TYPE: Record<string, string> = {
+  model_max_prompt_tokens_exceeded: "invalid_request_error",
+  context_length_exceeded: "invalid_request_error",
+  invalid_api_key: "authentication_error",
+  insufficient_quota: "rate_limit_error",
+  rate_limit_exceeded: "rate_limit_error",
+  server_error: "api_error",
+};
+
+/**
+ * Parse upstream OpenAI-format error response into an Anthropic-compatible
+ * error type and human-readable message.
+ */
+function parseUpstreamError(
+  rawText: string,
+  statusCode: number
+): { errorType: string; message: string } {
+  try {
+    const parsed = JSON.parse(rawText);
+    if (parsed?.error?.message) {
+      const code: string | undefined = parsed.error.code;
+      const errorType =
+        (code && OPENAI_CODE_TO_ANTHROPIC_TYPE[code]) ||
+        (statusCode === 401 || statusCode === 403
+          ? "authentication_error"
+          : statusCode === 429
+            ? "rate_limit_error"
+            : "api_error");
+      return { errorType, message: parsed.error.message };
+    }
+  } catch {
+    // not JSON — fall through
+  }
+  return { errorType: "api_error", message: rawText };
+}
+
 export async function handleMessages(c: Context) {
   // 1. Extract GitHub token
   const githubToken = extractToken(c.req.header("Authorization"));
@@ -90,10 +129,14 @@ export async function handleMessages(c: Context) {
   // 5. Handle upstream errors
   if (!upstream.ok) {
     const errorText = await upstream.text();
+    const { errorType, message } = parseUpstreamError(
+      errorText,
+      upstream.status
+    );
     return c.json(
       {
         type: "error",
-        error: { type: "api_error", message: errorText },
+        error: { type: errorType, message },
       },
       upstream.status as 400 | 401 | 403 | 500 | 502
     );
