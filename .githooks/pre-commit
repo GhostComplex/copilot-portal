@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Pre-commit hook: run prettier and eslint on staged files
+
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx)$' || true)
+STAGED_OTHER=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(json|md|yaml|yml)$' || true)
+
+if [ -z "$STAGED_TS" ] && [ -z "$STAGED_OTHER" ]; then
+  exit 0
+fi
+
+if [ -n "$STAGED_OTHER" ]; then
+  echo "$STAGED_OTHER" | xargs npx prettier --write
+  echo "$STAGED_OTHER" | xargs git add
+fi
+
+if [ -n "$STAGED_TS" ]; then
+  echo "$STAGED_TS" | xargs npx prettier --write
+  echo "$STAGED_TS" | xargs npx eslint --fix
+  echo "$STAGED_TS" | xargs git add
+fi
