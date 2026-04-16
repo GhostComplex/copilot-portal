@@ -13,6 +13,19 @@ vi.mock("../src/services/copilot", () => ({
   getModels: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),
+  filterAnthropicBeta: (raw: string | undefined | null) => {
+    if (!raw) return undefined;
+    const allowed = new Set([
+      "interleaved-thinking-2025-05-14",
+      "context-management-2025-06-27",
+      "advanced-tool-use-2025-11-20",
+    ]);
+    const kept = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s && allowed.has(s));
+    return kept.length > 0 ? kept.join(",") : undefined;
+  },
   TokenExchangeError: class TokenExchangeError extends Error {
     statusCode: number;
     constructor(message: string, statusCode: number) {
@@ -215,6 +228,68 @@ describe("POST /v1/messages", () => {
     expect(sentBody.max_tokens).toBe(16384);
     expect(sentBody.model).toBe("claude-sonnet-4");
     expect(sentBody.messages).toEqual([{ role: "user", content: "Hello" }]);
+  });
+
+  // --- anthropic-beta header forwarding ---
+
+  it("forwards allowed anthropic-beta values to upstream", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(validAnthropicBody, {
+        Authorization: "Bearer ghu_test",
+        "anthropic-beta":
+          "context-management-2025-06-27, some-unknown-beta, interleaved-thinking-2025-05-14",
+      })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBe(
+      "context-management-2025-06-27,interleaved-thinking-2025-05-14"
+    );
+  });
+
+  it("passes undefined anthropic-beta when header absent", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(validAnthropicBody, { Authorization: "Bearer ghu_test" })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it("drops anthropic-beta entirely when no values are allowed", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(validAnthropicBody, {
+        Authorization: "Bearer ghu_test",
+        "anthropic-beta": "unknown-beta-1, unknown-beta-2",
+      })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBeUndefined();
   });
 
   // --- Passthrough: streaming ---

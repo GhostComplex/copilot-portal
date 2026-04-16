@@ -88,7 +88,8 @@ async function fetchVSCodeVersion(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 async function buildCopilotHeaders(
-  copilotToken: string
+  copilotToken: string,
+  extra?: Record<string, string>
 ): Promise<Record<string, string>> {
   const editorVersion = await fetchVSCodeVersion();
   return {
@@ -100,7 +101,36 @@ async function buildCopilotHeaders(
     "X-GitHub-Api-Version": API_VERSION,
     "Copilot-Integration-Id": "vscode-chat",
     "Openai-Intent": "conversation-panel",
+    ...extra,
   };
+}
+
+/**
+ * Anthropic beta features that are known to be supported by the Copilot
+ * upstream. Any `anthropic-beta` value from the client is intersected with
+ * this set before being forwarded, so unsupported betas don't trigger
+ * 400 responses from upstream.
+ */
+export const ALLOWED_ANTHROPIC_BETAS = new Set([
+  "interleaved-thinking-2025-05-14",
+  "context-management-2025-06-27",
+  "advanced-tool-use-2025-11-20",
+]);
+
+/**
+ * Filter a raw `anthropic-beta` header value (comma-separated) down to
+ * entries in {@link ALLOWED_ANTHROPIC_BETAS}. Returns `undefined` if
+ * nothing remains.
+ */
+export function filterAnthropicBeta(
+  raw: string | undefined | null
+): string | undefined {
+  if (!raw) return undefined;
+  const kept = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s && ALLOWED_ANTHROPIC_BETAS.has(s));
+  return kept.length > 0 ? kept.join(",") : undefined;
 }
 
 function buildGitHubHeaders(githubToken: string): Record<string, string> {
@@ -214,9 +244,11 @@ export async function createChatCompletions(
  */
 export async function createMessages(
   copilotToken: string,
-  body: string
+  body: string,
+  anthropicBeta?: string
 ): Promise<Response> {
-  const headers = await buildCopilotHeaders(copilotToken);
+  const extra = anthropicBeta ? { "anthropic-beta": anthropicBeta } : undefined;
+  const headers = await buildCopilotHeaders(copilotToken, extra);
   return fetch(`${COPILOT_API_BASE_URL}/v1/messages`, {
     method: "POST",
     headers,

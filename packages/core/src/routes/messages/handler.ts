@@ -6,6 +6,7 @@ import type { Context } from "hono";
 import {
   getCopilotToken,
   createMessages,
+  filterAnthropicBeta,
   TokenExchangeError,
 } from "../../services/copilot";
 import { extractToken } from "../../lib/utils";
@@ -63,7 +64,8 @@ export async function handleMessages(c: Context) {
     // invalid JSON — let upstream reject it
   }
   console.log(`[${requestId}] POST /v1/messages`);
-  const upstream = await createMessages(copilotToken, body);
+  const anthropicBeta = filterAnthropicBeta(c.req.header("anthropic-beta"));
+  const upstream = await createMessages(copilotToken, body, anthropicBeta);
 
   if (!upstream.ok) {
     const errorText = await upstream.text();
