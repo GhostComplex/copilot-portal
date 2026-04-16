@@ -1,6 +1,9 @@
 name: Deploy Azure Web App Container
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       target:
