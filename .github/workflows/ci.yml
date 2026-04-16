@@ -38,5 +38,3 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           working-directory: packages/core
-          json-summary-path: packages/core/coverage/coverage-summary.json
-          json-final-path: packages/core/coverage/coverage-final.json
