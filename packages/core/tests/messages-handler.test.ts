@@ -192,6 +192,31 @@ describe("POST /v1/messages", () => {
     );
   });
 
+  it("injects default max_tokens when missing", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const bodyWithoutMaxTokens = JSON.stringify({
+      model: "claude-sonnet-4",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(bodyWithoutMaxTokens, { Authorization: "Bearer ghu_test" })
+    );
+
+    const sentBody = JSON.parse(mockCreateMessages.mock.calls[0][1]);
+    expect(sentBody.max_tokens).toBe(16384);
+    expect(sentBody.model).toBe("claude-sonnet-4");
+    expect(sentBody.messages).toEqual([{ role: "user", content: "Hello" }]);
+  });
+
   // --- Passthrough: streaming ---
 
   it("passes through SSE stream unchanged", async () => {
