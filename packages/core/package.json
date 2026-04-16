@@ -14,14 +14,16 @@
     "lint:fix": "eslint src tests --fix",
     "format": "prettier --write src tests",
     "format:check": "prettier --check src tests",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:e2e": "vitest run --project e2e",
+    "test:coverage": "vitest run --project unit --coverage"
   },
   "dependencies": {
     "hono": "4.12.9"
   },
   "devDependencies": {
+    "@types/node": "22.15.2",
     "@vitest/coverage-v8": "4.1.2",
     "vitest": "4.1.2"
   }

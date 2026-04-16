@@ -18,6 +18,7 @@
     "format": "pnpm -r format",
     "format:check": "pnpm -r format:check",
     "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm -r --if-present test:e2e",
     "test:coverage": "pnpm -r --if-present test:coverage",
     "prepare": "git config core.hooksPath .githooks || true"
   },
