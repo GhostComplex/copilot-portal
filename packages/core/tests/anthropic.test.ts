@@ -247,6 +247,96 @@ describe("translateToOpenAI", () => {
       function: { name: "get_weather" },
     });
   });
+
+  it("translates tool_choice none", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: "Hello" }],
+      tool_choice: { type: "none" },
+    };
+
+    expect(translateToOpenAI(payload).tool_choice).toBe("none");
+  });
+
+  it("translates tool_choice tool without name to undefined", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: "Hello" }],
+      tool_choice: { type: "tool" },
+    };
+
+    expect(translateToOpenAI(payload).tool_choice).toBeUndefined();
+  });
+
+  it("translates assistant message with string content", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [{ role: "assistant", content: "I said this" }],
+    };
+
+    const result = translateToOpenAI(payload);
+    expect(result.messages[0]).toEqual({
+      role: "assistant",
+      content: "I said this",
+    });
+  });
+
+  it("translates assistant message with thinking blocks", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "Let me think..." },
+            { type: "text", text: "Answer" },
+          ],
+        },
+      ],
+    };
+
+    const result = translateToOpenAI(payload);
+    expect(result.messages[0]).toEqual({
+      role: "assistant",
+      content: "Answer\n\nLet me think...",
+    });
+  });
+
+  it("translates user message with mixed tool_result and text blocks", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "call_1",
+              content: "Result",
+            },
+            { type: "text", text: "And also this" },
+          ],
+        },
+      ],
+    };
+
+    const result = translateToOpenAI(payload);
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0]).toEqual({
+      role: "tool",
+      tool_call_id: "call_1",
+      content: "Result",
+    });
+    expect(result.messages[1]).toEqual({
+      role: "user",
+      content: "And also this",
+    });
+  });
 });
 
 describe("translateToAnthropic", () => {
@@ -397,6 +487,29 @@ describe("translateToAnthropic", () => {
       },
     ]);
   });
+
+  it("calculates cache_read_input_tokens from cached_tokens", () => {
+    const response: OpenAIChatCompletionResponse = {
+      id: "chat-123",
+      model: "test",
+      choices: [
+        {
+          index: 0,
+          message: { role: "assistant", content: "Hi" },
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 10,
+        prompt_tokens_details: { cached_tokens: 80 },
+      },
+    };
+
+    const result = translateToAnthropic(response);
+    expect(result.usage.input_tokens).toBe(20);
+    expect(result.usage.cache_read_input_tokens).toBe(80);
+  });
 });
 
 describe("translateChunkToAnthropicEvents", () => {
@@ -513,5 +626,125 @@ describe("translateChunkToAnthropicEvents", () => {
 
     const events = translateChunkToAnthropicEvents(chunk, state);
     expect(events).toHaveLength(0);
+  });
+
+  it("includes cache_read_input_tokens in message_start when present", () => {
+    const state = createStreamState();
+    const chunk: OpenAIChatCompletionChunk = {
+      id: "chat-123",
+      model: "claude-sonnet-4",
+      choices: [
+        { index: 0, delta: { role: "assistant" }, finish_reason: null },
+      ],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 0,
+        prompt_tokens_details: { cached_tokens: 80 },
+      },
+    };
+
+    const events = translateChunkToAnthropicEvents(chunk, state);
+    expect(events[0].type).toBe("message_start");
+    const msg = (
+      events[0] as {
+        message: {
+          usage: { input_tokens: number; cache_read_input_tokens?: number };
+        };
+      }
+    ).message;
+    expect(msg.usage.input_tokens).toBe(20);
+    expect(msg.usage.cache_read_input_tokens).toBe(80);
+  });
+
+  it("closes tool block when text arrives after tool call", () => {
+    const state = createStreamState();
+    state.messageStartSent = true;
+    state.contentBlockOpen = true;
+    state.contentBlockIndex = 0;
+    state.toolCalls = {
+      0: { id: "call_1", name: "fn", anthropicBlockIndex: 0 },
+    };
+
+    const chunk: OpenAIChatCompletionChunk = {
+      id: "chat-123",
+      model: "claude-sonnet-4",
+      choices: [
+        {
+          index: 0,
+          delta: { content: "text after tool" },
+          finish_reason: null,
+        },
+      ],
+    };
+
+    const events = translateChunkToAnthropicEvents(chunk, state);
+    expect(events[0].type).toBe("content_block_stop");
+    expect(events[1].type).toBe("content_block_start");
+    expect(events[2].type).toBe("content_block_delta");
+    expect(state.contentBlockIndex).toBe(1);
+  });
+
+  it("streams tool call arguments as input_json_delta", () => {
+    const state = createStreamState();
+    state.messageStartSent = true;
+    state.contentBlockOpen = true;
+    state.contentBlockIndex = 0;
+    state.toolCalls = {
+      0: { id: "call_1", name: "fn", anthropicBlockIndex: 0 },
+    };
+
+    const chunk: OpenAIChatCompletionChunk = {
+      id: "chat-123",
+      model: "claude-sonnet-4",
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [{ index: 0, function: { arguments: '{"key":' } }],
+          },
+          finish_reason: null,
+        },
+      ],
+    };
+
+    const events = translateChunkToAnthropicEvents(chunk, state);
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("content_block_delta");
+    expect(
+      (events[0] as { delta: { type: string; partial_json: string } }).delta
+        .type
+    ).toBe("input_json_delta");
+    expect(
+      (events[0] as { delta: { type: string; partial_json: string } }).delta
+        .partial_json
+    ).toBe('{"key":');
+  });
+
+  it("closes content block before opening tool block", () => {
+    const state = createStreamState();
+    state.messageStartSent = true;
+    state.contentBlockOpen = true;
+    state.contentBlockIndex = 0;
+
+    const chunk: OpenAIChatCompletionChunk = {
+      id: "chat-123",
+      model: "claude-sonnet-4",
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              { index: 0, id: "call_1", function: { name: "get_weather" } },
+            ],
+          },
+          finish_reason: null,
+        },
+      ],
+    };
+
+    const events = translateChunkToAnthropicEvents(chunk, state);
+    expect(events[0].type).toBe("content_block_stop");
+    expect(events[1].type).toBe("content_block_start");
+    expect(state.contentBlockIndex).toBe(1);
   });
 });

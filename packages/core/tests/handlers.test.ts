@@ -51,6 +51,28 @@ describe("GET /v1/models", () => {
     expect(res.status).toBe(401);
   });
 
+  it("returns error on token exchange failure", async () => {
+    mockGetCopilotToken.mockRejectedValue(
+      new TokenExchangeError("Token expired", 403)
+    );
+
+    const res = await app.request("/v1/models", {
+      headers: { Authorization: "Bearer ghu_test" },
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("Token exchange failed");
+  });
+
+  it("re-throws non-TokenExchangeError", async () => {
+    mockGetCopilotToken.mockRejectedValue(new Error("network error"));
+
+    const res = await app.request("/v1/models", {
+      headers: { Authorization: "Bearer ghu_test" },
+    });
+    expect(res.status).toBe(500);
+  });
+
   it("returns list of models with valid auth", async () => {
     mockGetCopilotToken.mockResolvedValue("copilot-token");
     mockGetModels.mockResolvedValue(
@@ -127,6 +149,70 @@ describe("POST /v1/chat/completions", () => {
     });
 
     expect(res.status).toBe(401);
+  });
+
+  it("re-throws non-TokenExchangeError", async () => {
+    mockGetCopilotToken.mockRejectedValue(new Error("network error"));
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer ghu_test" },
+      body: "{}",
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns upstream error on non-ok response", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateChatCompletions.mockResolvedValue(
+      new Response("rate limited", { status: 429 })
+    );
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer ghu_test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-4", messages: [] }),
+    });
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toBe("Upstream error");
+  });
+
+  it("sets SSE headers for streaming response", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode("data: {}\n\n"));
+        controller.close();
+      },
+    });
+
+    mockCreateChatCompletions.mockResolvedValue(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer ghu_test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-4", messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    expect(res.headers.get("Cache-Control")).toBe("no-cache");
+    expect(res.headers.get("Connection")).toBe("keep-alive");
   });
 });
 
