@@ -30,6 +30,8 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
+ARG COMMIT_SHA=unknown
+ENV COMMIT_SHA=$COMMIT_SHA
 ENV NODE_ENV=production
 ENV PORT=8080
 

@@ -38,6 +38,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
