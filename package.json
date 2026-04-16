@@ -19,7 +19,7 @@
     "format:check": "pnpm -r format:check",
     "test": "pnpm -r --if-present test",
     "test:coverage": "pnpm -r --if-present test:coverage",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "8.58.0",
