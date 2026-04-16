@@ -12,7 +12,11 @@ import {
   createStreamState,
 } from "../src/routes/messages/stream-translation";
 import type { OpenAIChatCompletionChunk } from "../src/routes/messages/types/openai";
-import type { AnthropicMessagesPayload, AnthropicThinkingBlock, AnthropicRedactedThinkingBlock } from "../src/routes/messages/types/anthropic";
+import type {
+  AnthropicMessagesPayload,
+  AnthropicThinkingBlock,
+  AnthropicRedactedThinkingBlock,
+} from "../src/routes/messages/types/anthropic";
 import type { OpenAIChatCompletionResponse } from "../src/routes/messages/types/openai";
 
 describe("translateToOpenAI", () => {

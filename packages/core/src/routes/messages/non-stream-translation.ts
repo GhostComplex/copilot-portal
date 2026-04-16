@@ -168,9 +168,7 @@ function mapContent(
 
   if (!hasImage) {
     return supported
-      .filter(
-        (block): block is AnthropicTextBlock => block.type === "text"
-      )
+      .filter((block): block is AnthropicTextBlock => block.type === "text")
       .map((block) => block.text)
       .join("\n\n");
   }
