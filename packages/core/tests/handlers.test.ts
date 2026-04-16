@@ -5,6 +5,7 @@ import app from "../src/index";
 vi.mock("../src/services/copilot", () => ({
   getCopilotToken: vi.fn(),
   createChatCompletions: vi.fn(),
+  createMessages: vi.fn(),
   getModels: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),

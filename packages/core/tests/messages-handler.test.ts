@@ -1,14 +1,15 @@
 /**
- * Tests for POST /v1/messages — Anthropic Messages API handler
+ * Tests for POST /v1/messages — Anthropic Messages API passthrough
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../src/index";
 
-// Mock services (same pattern as handlers.test.ts)
+// Mock services
 vi.mock("../src/services/copilot", () => ({
   getCopilotToken: vi.fn(),
   createChatCompletions: vi.fn(),
+  createMessages: vi.fn(),
   getModels: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),
@@ -23,14 +24,12 @@ vi.mock("../src/services/copilot", () => ({
 
 import {
   getCopilotToken,
-  createChatCompletions,
+  createMessages,
   TokenExchangeError,
 } from "../src/services/copilot";
 
 const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
-const mockCreateChatCompletions = createChatCompletions as ReturnType<
-  typeof vi.fn
->;
+const mockCreateMessages = createMessages as ReturnType<typeof vi.fn>;
 
 const validAnthropicBody = JSON.stringify({
   model: "claude-sonnet-4",
@@ -55,7 +54,7 @@ function makeRequest(
 describe("POST /v1/messages", () => {
   beforeEach(() => {
     mockGetCopilotToken.mockReset();
-    mockCreateChatCompletions.mockReset();
+    mockCreateMessages.mockReset();
   });
 
   // --- Auth ---
@@ -105,29 +104,11 @@ describe("POST /v1/messages", () => {
     expect(res.status).toBe(500);
   });
 
-  // --- Invalid body ---
-
-  it("returns 400 on invalid JSON body", async () => {
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-
-    const res = await app.request("/v1/messages", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer ghu_test",
-        "Content-Type": "application/json",
-      },
-      body: "not json {{{",
-    });
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error.type).toBe("invalid_request_error");
-  });
-
   // --- Upstream error ---
 
   it("returns upstream error status on non-ok response", async () => {
     mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateChatCompletions.mockResolvedValue(
+    mockCreateMessages.mockResolvedValue(
       new Response("rate limited", { status: 429 })
     );
 
@@ -141,121 +122,112 @@ describe("POST /v1/messages", () => {
     expect(body.error.message).toBe("rate limited");
   });
 
-  // --- Non-streaming ---
+  // --- Passthrough: non-streaming ---
 
-  it("returns translated Anthropic response for non-streaming request", async () => {
+  it("passes through upstream JSON response unchanged", async () => {
     mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateChatCompletions.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: "chat-123",
-          model: "claude-sonnet-4",
-          choices: [
-            {
-              index: 0,
-              message: { role: "assistant", content: "Hi there!" },
-              finish_reason: "stop",
-            },
-          ],
-          usage: { prompt_tokens: 10, completion_tokens: 5 },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
-    );
 
-    const body = JSON.stringify({
+    const upstreamBody = {
+      id: "msg_123",
+      type: "message",
+      role: "assistant",
       model: "claude-sonnet-4",
-      max_tokens: 1024,
-      stream: false,
-      messages: [{ role: "user", content: "Hello" }],
-    });
+      content: [{ type: "text", text: "Hi there!" }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+
+    mockCreateMessages.mockResolvedValue(
+      new Response(JSON.stringify(upstreamBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
 
     const res = await app.request(
       "/v1/messages",
-      makeRequest(body, { Authorization: "Bearer ghu_test" })
+      makeRequest(validAnthropicBody, { Authorization: "Bearer ghu_test" })
     );
     expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/json");
     const data = await res.json();
-    expect(data.type).toBe("message");
-    expect(data.role).toBe("assistant");
-    expect(data.content).toEqual([{ type: "text", text: "Hi there!" }]);
-    expect(data.stop_reason).toBe("end_turn");
-    expect(data.usage.input_tokens).toBe(10);
-    expect(data.usage.output_tokens).toBe(5);
+    expect(data).toEqual(upstreamBody);
   });
 
-  // --- Streaming: no body ---
-
-  it("returns 502 when streaming but upstream has no body", async () => {
+  it("forwards request body to upstream unchanged", async () => {
     mockGetCopilotToken.mockResolvedValue("copilot-token");
-    // Response with null body
-    const upstreamResponse = new Response(null, { status: 200 });
-    // Override body to be null
-    Object.defineProperty(upstreamResponse, "body", { value: null });
-    mockCreateChatCompletions.mockResolvedValue(upstreamResponse);
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
 
-    const body = JSON.stringify({
+    const bodyWithThinking = JSON.stringify({
       model: "claude-sonnet-4",
       max_tokens: 1024,
-      stream: true,
-      messages: [{ role: "user", content: "Hello" }],
+      thinking: { type: "enabled", budget_tokens: 5000 },
+      messages: [
+        { role: "user", content: "Hello" },
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "...", signature: "abc123" },
+            { type: "text", text: "Hi" },
+          ],
+        },
+        { role: "user", content: "Follow up" },
+      ],
     });
 
-    const res = await app.request(
+    await app.request(
       "/v1/messages",
-      makeRequest(body, { Authorization: "Bearer ghu_test" })
+      makeRequest(bodyWithThinking, { Authorization: "Bearer ghu_test" })
     );
-    expect(res.status).toBe(502);
-    const data = await res.json();
-    expect(data.error.type).toBe("api_error");
-    expect(data.error.message).toBe("No upstream body");
+
+    expect(mockCreateMessages).toHaveBeenCalledWith(
+      "copilot-token",
+      bodyWithThinking
+    );
   });
 
-  // --- Streaming: success ---
+  // --- Passthrough: streaming ---
 
-  it("streams SSE events for streaming request", async () => {
+  it("passes through SSE stream unchanged", async () => {
     mockGetCopilotToken.mockResolvedValue("copilot-token");
 
-    const sseData = [
-      `data: ${JSON.stringify({ id: "chat-1", model: "claude-sonnet-4", choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] })}\n\n`,
-      `data: ${JSON.stringify({ id: "chat-1", model: "claude-sonnet-4", choices: [{ index: 0, delta: { content: "Hi" }, finish_reason: null }] })}\n\n`,
-      `data: ${JSON.stringify({ id: "chat-1", model: "claude-sonnet-4", choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 2 } })}\n\n`,
-      `data: [DONE]\n\n`,
-    ];
+    const sseData =
+      'event: message_start\ndata: {"type":"message_start"}\n\n' +
+      'event: content_block_delta\ndata: {"type":"content_block_delta"}\n\n' +
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n';
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
-        for (const chunk of sseData) {
-          controller.enqueue(encoder.encode(chunk));
-        }
+        controller.enqueue(encoder.encode(sseData));
         controller.close();
       },
     });
 
-    mockCreateChatCompletions.mockResolvedValue(
+    mockCreateMessages.mockResolvedValue(
       new Response(stream, {
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
       })
     );
 
-    const body = JSON.stringify({
-      model: "claude-sonnet-4",
-      max_tokens: 1024,
-      stream: true,
-      messages: [{ role: "user", content: "Hello" }],
-    });
-
     const res = await app.request(
       "/v1/messages",
-      makeRequest(body, { Authorization: "Bearer ghu_test" })
+      makeRequest(validAnthropicBody, { Authorization: "Bearer ghu_test" })
     );
     expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    expect(res.headers.get("Cache-Control")).toBe("no-cache");
+    expect(res.headers.get("Connection")).toBe("keep-alive");
 
     const text = await res.text();
     expect(text).toContain("message_start");
-    expect(text).toContain("content_block_start");
     expect(text).toContain("content_block_delta");
     expect(text).toContain("message_stop");
   });
