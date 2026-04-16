@@ -1,0 +1,66 @@
+#!/bin/sh
+
+# Pre-push hook: validate tag naming, uniqueness, and version consistency.
+# Runs on every `git push` — only inspects tag refs, ignores branch pushes.
+
+REMOTE="$1"
+ZERO="0000000000000000000000000000000000000000"
+
+while read local_ref local_sha remote_ref remote_sha; do
+  # Only check tag pushes
+  case "$local_ref" in
+    refs/tags/*) ;;
+    *) continue ;;
+  esac
+
+  # Skip tag deletion
+  if [ "$local_sha" = "$ZERO" ]; then
+    continue
+  fi
+
+  TAG="${local_ref#refs/tags/}"
+
+  # --- 1. Format validation ---
+  case "$TAG" in
+    staging-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
+      # Validate it's a real date (YYYYMMDD)
+      YEAR=$(echo "$TAG" | cut -c9-12)
+      MONTH=$(echo "$TAG" | cut -c13-14)
+      DAY=$(echo "$TAG" | cut -c15-16)
+      if ! date -j -f "%Y%m%d" "${YEAR}${MONTH}${DAY}" >/dev/null 2>&1; then
+        echo "ERROR: Invalid date in tag '$TAG'. Expected format: staging-YYYYMMDD"
+        exit 1
+      fi
+      ;;
+    release-[0-9]*.*)
+      VERSION="${TAG#release-}"
+      if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        echo "ERROR: Invalid version in tag '$TAG'. Expected format: release-X.Y.Z (semver)"
+        exit 1
+      fi
+
+      # --- 3. Version must match package.json ---
+      PKG_VERSION=$(node -p "require('./package.json').version" 2>/dev/null)
+      if [ "$VERSION" != "$PKG_VERSION" ]; then
+        echo "ERROR: Tag version ($VERSION) does not match package.json version ($PKG_VERSION)."
+        echo "Update package.json version first, then tag."
+        exit 1
+      fi
+      ;;
+    *)
+      echo "ERROR: Tag '$TAG' does not match allowed formats:"
+      echo "  staging-YYYYMMDD   (e.g. staging-20260416)"
+      echo "  release-X.Y.Z     (e.g. release-1.0.0)"
+      exit 1
+      ;;
+  esac
+
+  # --- 2. Duplicate check ---
+  if git ls-remote --tags "$REMOTE" "refs/tags/$TAG" 2>/dev/null | grep -q "$TAG"; then
+    echo "ERROR: Tag '$TAG' already exists on remote."
+    exit 1
+  fi
+
+done
+
+exit 0
