@@ -88,7 +88,8 @@ async function fetchVSCodeVersion(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 async function buildCopilotHeaders(
-  copilotToken: string
+  copilotToken: string,
+  extra?: Record<string, string>
 ): Promise<Record<string, string>> {
   const editorVersion = await fetchVSCodeVersion();
   return {
@@ -100,7 +101,36 @@ async function buildCopilotHeaders(
     "X-GitHub-Api-Version": API_VERSION,
     "Copilot-Integration-Id": "vscode-chat",
     "Openai-Intent": "conversation-panel",
+    ...extra,
   };
+}
+
+/**
+ * Filter the client's `anthropic-beta` header down to betas that are
+ * supported by the Copilot upstream for the given model. Returns
+ * `undefined` if nothing remains.
+ *
+ * - `context-management-2025-06-27` and `advanced-tool-use-2025-11-20`
+ *   are universally supported.
+ * - `interleaved-thinking-2025-05-14` is supported on all Claude models
+ *   except `claude-opus-4.7*`, which rejects it.
+ */
+export function filterAnthropicBeta(
+  raw: string | undefined | null,
+  model?: string
+): string | undefined {
+  if (!raw) return undefined;
+  const isOpus47 = model?.startsWith("claude-opus-4.7") ?? false;
+  const kept = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => {
+      if (s === "context-management-2025-06-27") return true;
+      if (s === "advanced-tool-use-2025-11-20") return true;
+      if (s === "interleaved-thinking-2025-05-14") return !isOpus47;
+      return false;
+    });
+  return kept.length > 0 ? kept.join(",") : undefined;
 }
 
 function buildGitHubHeaders(githubToken: string): Record<string, string> {
@@ -214,9 +244,11 @@ export async function createChatCompletions(
  */
 export async function createMessages(
   copilotToken: string,
-  body: string
+  body: string,
+  anthropicBeta?: string
 ): Promise<Response> {
-  const headers = await buildCopilotHeaders(copilotToken);
+  const extra = anthropicBeta ? { "anthropic-beta": anthropicBeta } : undefined;
+  const headers = await buildCopilotHeaders(copilotToken, extra);
   return fetch(`${COPILOT_API_BASE_URL}/v1/messages`, {
     method: "POST",
     headers,

@@ -13,6 +13,20 @@ vi.mock("../src/services/copilot", () => ({
   getModels: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),
+  filterAnthropicBeta: (raw: string | undefined | null, model?: string) => {
+    if (!raw) return undefined;
+    const isOpus47 = model?.startsWith("claude-opus-4.7") ?? false;
+    const kept = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => {
+        if (s === "context-management-2025-06-27") return true;
+        if (s === "advanced-tool-use-2025-11-20") return true;
+        if (s === "interleaved-thinking-2025-05-14") return !isOpus47;
+        return false;
+      });
+    return kept.length > 0 ? kept.join(",") : undefined;
+  },
   TokenExchangeError: class TokenExchangeError extends Error {
     statusCode: number;
     constructor(message: string, statusCode: number) {
@@ -188,7 +202,8 @@ describe("POST /v1/messages", () => {
 
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
-      bodyWithThinking
+      bodyWithThinking,
+      undefined
     );
   });
 
@@ -215,6 +230,183 @@ describe("POST /v1/messages", () => {
     expect(sentBody.max_tokens).toBe(16384);
     expect(sentBody.model).toBe("claude-sonnet-4");
     expect(sentBody.messages).toEqual([{ role: "user", content: "Hello" }]);
+  });
+
+  // --- claude-opus-4.7 thinking shape rewrite ---
+
+  it("rewrites thinking.type=enabled to adaptive+effort for claude-opus-4.7", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const body47 = JSON.stringify({
+      model: "claude-opus-4.7",
+      max_tokens: 1024,
+      thinking: { type: "enabled", budget_tokens: 5000 },
+      messages: [{ role: "user", content: "Hi" }],
+    });
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(body47, { Authorization: "Bearer ghu_test" })
+    );
+
+    const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
+    expect(sent.thinking).toEqual({ type: "adaptive" });
+    expect(sent.output_config).toEqual({ effort: "medium" });
+  });
+
+  it("maps thinking budget_tokens to effort buckets for claude-opus-4.7", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    // claude-opus-4.7 currently only accepts `effort: "medium"`, regardless
+    // of the requested budget_tokens.
+    const budgets = [1024, 2048, 8000, 16000, 32000];
+
+    for (const budget of budgets) {
+      mockCreateMessages.mockReset();
+      mockCreateMessages.mockResolvedValue(
+        new Response("{}", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+
+      const body = JSON.stringify({
+        model: "claude-opus-4.7",
+        max_tokens: 1024,
+        thinking: { type: "enabled", budget_tokens: budget },
+        messages: [{ role: "user", content: "Hi" }],
+      });
+
+      await app.request(
+        "/v1/messages",
+        makeRequest(body, { Authorization: "Bearer ghu_test" })
+      );
+
+      const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
+      expect(sent.output_config.effort).toBe("medium");
+    }
+  });
+
+  it("does not rewrite thinking for non-4.7 models", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const body = JSON.stringify({
+      model: "claude-opus-4.6",
+      max_tokens: 1024,
+      thinking: { type: "enabled", budget_tokens: 5000 },
+      messages: [{ role: "user", content: "Hi" }],
+    });
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(body, { Authorization: "Bearer ghu_test" })
+    );
+
+    const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
+    expect(sent.thinking).toEqual({ type: "enabled", budget_tokens: 5000 });
+    expect(sent.output_config).toBeUndefined();
+  });
+
+  // --- anthropic-beta header forwarding ---
+
+  it("forwards allowed anthropic-beta values to upstream", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(validAnthropicBody, {
+        Authorization: "Bearer ghu_test",
+        "anthropic-beta":
+          "context-management-2025-06-27, some-unknown-beta, interleaved-thinking-2025-05-14",
+      })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBe(
+      "context-management-2025-06-27,interleaved-thinking-2025-05-14"
+    );
+  });
+
+  it("passes undefined anthropic-beta when header absent", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(validAnthropicBody, { Authorization: "Bearer ghu_test" })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it("drops anthropic-beta entirely when no values are allowed", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(validAnthropicBody, {
+        Authorization: "Bearer ghu_test",
+        "anthropic-beta": "unknown-beta-1, unknown-beta-2",
+      })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it("strips interleaved-thinking beta for claude-opus-4.7", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const body47 = JSON.stringify({
+      model: "claude-opus-4.7",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: "Hi" }],
+    });
+
+    await app.request(
+      "/v1/messages",
+      makeRequest(body47, {
+        Authorization: "Bearer ghu_test",
+        "anthropic-beta":
+          "interleaved-thinking-2025-05-14, context-management-2025-06-27",
+      })
+    );
+
+    expect(mockCreateMessages.mock.calls[0][2]).toBe(
+      "context-management-2025-06-27"
+    );
   });
 
   // --- Passthrough: streaming ---

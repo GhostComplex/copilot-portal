@@ -4,6 +4,9 @@ import {
   clearTokenCache,
   isTokenValid,
   createChatCompletions,
+  createMessages,
+  getModels,
+  filterAnthropicBeta,
   resetVSCodeVersionCache,
   TokenExchangeError,
   HttpError,
@@ -112,6 +115,179 @@ describe("createChatCompletions", () => {
     expect(mockFetch.mock.calls[1][0]).toBe(
       "https://api.githubcopilot.com/chat/completions"
     );
+  });
+});
+
+describe("filterAnthropicBeta", () => {
+  it("returns undefined for empty input", () => {
+    expect(filterAnthropicBeta(undefined)).toBeUndefined();
+    expect(filterAnthropicBeta(null)).toBeUndefined();
+    expect(filterAnthropicBeta("")).toBeUndefined();
+  });
+
+  it("keeps supported betas", () => {
+    expect(
+      filterAnthropicBeta(
+        "context-management-2025-06-27,advanced-tool-use-2025-11-20"
+      )
+    ).toBe("context-management-2025-06-27,advanced-tool-use-2025-11-20");
+  });
+
+  it("keeps interleaved-thinking for non-Opus-4.7 models", () => {
+    expect(
+      filterAnthropicBeta(
+        "interleaved-thinking-2025-05-14",
+        "claude-sonnet-4-6"
+      )
+    ).toBe("interleaved-thinking-2025-05-14");
+  });
+
+  it("drops interleaved-thinking for Opus 4.7", () => {
+    expect(
+      filterAnthropicBeta(
+        "interleaved-thinking-2025-05-14,context-management-2025-06-27",
+        "claude-opus-4.7"
+      )
+    ).toBe("context-management-2025-06-27");
+  });
+
+  it("drops unknown betas and returns undefined when nothing remains", () => {
+    expect(filterAnthropicBeta("some-unknown-beta")).toBeUndefined();
+  });
+
+  it("trims whitespace around entries", () => {
+    expect(
+      filterAnthropicBeta(" context-management-2025-06-27 , unknown ")
+    ).toBe("context-management-2025-06-27");
+  });
+});
+
+describe("createMessages", () => {
+  beforeEach(() => {
+    resetVSCodeVersionCache();
+    mockFetch.mockReset();
+  });
+
+  it("forwards request without anthropic-beta header", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ["1.100.0"] })
+      .mockResolvedValueOnce({ ok: true });
+
+    await createMessages("tok", "{}");
+    const [url, init] = mockFetch.mock.calls[1];
+    expect(url).toBe("https://api.githubcopilot.com/v1/messages");
+    expect(init.headers["anthropic-beta"]).toBeUndefined();
+  });
+
+  it("forwards anthropic-beta header when provided", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ["1.100.0"] })
+      .mockResolvedValueOnce({ ok: true });
+
+    await createMessages("tok", "{}", "context-management-2025-06-27");
+    const init = mockFetch.mock.calls[1][1];
+    expect(init.headers["anthropic-beta"]).toBe(
+      "context-management-2025-06-27"
+    );
+  });
+});
+
+describe("getModels", () => {
+  beforeEach(() => {
+    resetVSCodeVersionCache();
+    mockFetch.mockReset();
+  });
+
+  it("GETs the models endpoint", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ["1.100.0"] })
+      .mockResolvedValueOnce({ ok: true });
+
+    await getModels("tok");
+    const [url, init] = mockFetch.mock.calls[1];
+    expect(url).toBe("https://api.githubcopilot.com/models");
+    expect(init.method).toBe("GET");
+  });
+});
+
+describe("fetchVSCodeVersion", () => {
+  beforeEach(() => {
+    resetVSCodeVersionCache();
+    mockFetch.mockReset();
+  });
+
+  it("falls back when releases fetch fails", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: false, status: 500 })
+      .mockResolvedValueOnce({ ok: true });
+
+    await createChatCompletions("tok", "{}");
+    expect(mockFetch.mock.calls[1][1].headers["Editor-Version"]).toBe(
+      "vscode/1.110.1"
+    );
+  });
+
+  it("falls back on invalid payload shape", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+      .mockResolvedValueOnce({ ok: true });
+
+    await createChatCompletions("tok", "{}");
+    expect(mockFetch.mock.calls[1][1].headers["Editor-Version"]).toBe(
+      "vscode/1.110.1"
+    );
+  });
+
+  it("caches the resolved version across calls", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ["1.101.0"] })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true });
+
+    await createChatCompletions("tok", "{}");
+    await createChatCompletions("tok", "{}");
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls[2][1].headers["Editor-Version"]).toBe(
+      "vscode/1.101.0"
+    );
+  });
+});
+
+describe("getCopilotToken additional error paths", () => {
+  beforeEach(() => {
+    clearTokenCache();
+    mockFetch.mockReset();
+  });
+
+  it("maps non-auth errors to 500", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      text: async () => "Bad Gateway",
+    });
+
+    try {
+      await getCopilotToken("tok");
+      throw new Error("expected throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(TokenExchangeError);
+      expect((e as TokenExchangeError).statusCode).toBe(500);
+    }
+  });
+
+  it("propagates 403 status", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () => "Forbidden",
+    });
+
+    try {
+      await getCopilotToken("tok");
+      throw new Error("expected throw");
+    } catch (e) {
+      expect((e as TokenExchangeError).statusCode).toBe(403);
+    }
   });
 });
 
