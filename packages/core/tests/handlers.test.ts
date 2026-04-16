@@ -34,7 +34,9 @@ describe("GET /health", () => {
   it("returns ok status", async () => {
     const res = await app.request("/health");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: "ok" });
+    const body = await res.json();
+    expect(body.status).toBe("ok");
+    expect(body).toHaveProperty("commit");
   });
 });
 
