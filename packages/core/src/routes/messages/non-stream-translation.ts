@@ -9,7 +9,6 @@ import type {
   AnthropicAssistantMessage,
   AnthropicToolResultBlock,
   AnthropicToolUseBlock,
-  AnthropicThinkingBlock,
   AnthropicTool,
   AnthropicResponse,
   AnthropicAssistantContentBlock,
@@ -122,26 +121,27 @@ function handleAssistantMessage(
     return [{ role: "assistant", content: message.content }];
   }
 
-  const toolUseBlocks = message.content.filter(
-    (block): block is AnthropicToolUseBlock => block.type === "tool_use"
-  );
-  const textBlocks = message.content.filter(
-    (block): block is AnthropicTextBlock => block.type === "text"
-  );
-  const thinkingBlocks = message.content.filter(
-    (block): block is AnthropicThinkingBlock => block.type === "thinking"
+  // Filter out thinking and redacted_thinking blocks — these are Anthropic-specific
+  // and carry signatures that must not be mangled. The upstream OpenAI/Copilot API
+  // does not support them, so we drop them entirely.
+  const supportedBlocks = message.content.filter(
+    (block) => block.type !== "thinking" && block.type !== "redacted_thinking"
   );
 
-  const allTextContent = [
-    ...textBlocks.map((b) => b.text),
-    ...thinkingBlocks.map((b) => b.thinking),
-  ].join("\n\n");
+  const toolUseBlocks = supportedBlocks.filter(
+    (block): block is AnthropicToolUseBlock => block.type === "tool_use"
+  );
+  const textBlocks = supportedBlocks.filter(
+    (block): block is AnthropicTextBlock => block.type === "text"
+  );
+
+  const textContent = textBlocks.map((b) => b.text).join("\n\n");
 
   if (toolUseBlocks.length > 0) {
     return [
       {
         role: "assistant",
-        content: allTextContent || null,
+        content: textContent || null,
         tool_calls: toolUseBlocks.map((block) => ({
           id: block.id,
           type: "function" as const,
@@ -154,30 +154,31 @@ function handleAssistantMessage(
     ];
   }
 
-  return [{ role: "assistant", content: allTextContent || null }];
+  return [{ role: "assistant", content: textContent || null }];
 }
 
 function mapContent(
   content: (AnthropicUserContentBlock | AnthropicAssistantContentBlock)[]
 ): string | OpenAIContentPart[] | null {
-  const hasImage = content.some((block) => block.type === "image");
+  // Filter out thinking/redacted_thinking blocks
+  const supported = content.filter(
+    (block) => block.type !== "thinking" && block.type !== "redacted_thinking"
+  );
+  const hasImage = supported.some((block) => block.type === "image");
 
   if (!hasImage) {
-    return content
+    return supported
       .filter(
-        (block): block is AnthropicTextBlock | AnthropicThinkingBlock =>
-          block.type === "text" || block.type === "thinking"
+        (block): block is AnthropicTextBlock => block.type === "text"
       )
-      .map((block) => (block.type === "text" ? block.text : block.thinking))
+      .map((block) => block.text)
       .join("\n\n");
   }
 
   const parts: OpenAIContentPart[] = [];
-  for (const block of content) {
+  for (const block of supported) {
     if (block.type === "text") {
       parts.push({ type: "text", text: block.text });
-    } else if (block.type === "thinking") {
-      parts.push({ type: "text", text: block.thinking });
     } else if (block.type === "image") {
       parts.push({
         type: "image_url",

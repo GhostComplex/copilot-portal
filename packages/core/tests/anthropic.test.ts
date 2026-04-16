@@ -12,7 +12,7 @@ import {
   createStreamState,
 } from "../src/routes/messages/stream-translation";
 import type { OpenAIChatCompletionChunk } from "../src/routes/messages/types/openai";
-import type { AnthropicMessagesPayload } from "../src/routes/messages/types/anthropic";
+import type { AnthropicMessagesPayload, AnthropicThinkingBlock, AnthropicRedactedThinkingBlock } from "../src/routes/messages/types/anthropic";
 import type { OpenAIChatCompletionResponse } from "../src/routes/messages/types/openai";
 
 describe("translateToOpenAI", () => {
@@ -179,6 +179,100 @@ describe("translateToOpenAI", () => {
             name: "get_weather",
             arguments: '{"location":"NYC"}',
           },
+        },
+      ],
+    });
+  });
+
+  it("strips thinking blocks with signatures from assistant messages", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "thinking",
+              thinking: "Let me think about this...",
+              signature: "abc123sig",
+            } satisfies AnthropicThinkingBlock,
+            { type: "text", text: "Here is my answer" },
+          ],
+        },
+      ],
+    };
+
+    const result = translateToOpenAI(payload);
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toEqual({
+      role: "assistant",
+      content: "Here is my answer",
+    });
+  });
+
+  it("strips redacted_thinking blocks from assistant messages", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "redacted_thinking",
+              data: "opaque-encrypted-data",
+            } satisfies AnthropicRedactedThinkingBlock,
+            { type: "text", text: "Result" },
+          ],
+        },
+      ],
+    };
+
+    const result = translateToOpenAI(payload);
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toEqual({
+      role: "assistant",
+      content: "Result",
+    });
+  });
+
+  it("strips thinking blocks alongside tool_use blocks", () => {
+    const payload: AnthropicMessagesPayload = {
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "thinking",
+              thinking: "I should call a tool",
+              signature: "sig456",
+            } satisfies AnthropicThinkingBlock,
+            {
+              type: "tool_use",
+              id: "call_xyz",
+              name: "search",
+              input: { q: "test" },
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = translateToOpenAI(payload);
+
+    expect(result.messages[0]).toEqual({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "call_xyz",
+          type: "function",
+          function: { name: "search", arguments: '{"q":"test"}' },
         },
       ],
     });
