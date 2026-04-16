@@ -101,6 +101,26 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
     expect(data.content[0].text).toBeTruthy();
   });
 
+  it("POST /v1/messages without max_tokens uses default", async () => {
+    const res = await app.request("/v1/messages", {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4",
+        stream: false,
+        messages: [{ role: "user", content: "Say hello in one word." }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.type).toBe("message");
+    expect(data.content[0].text).toBeTruthy();
+  });
+
   it("POST /v1/messages streaming", async () => {
     const res = await app.request("/v1/messages", {
       method: "POST",
