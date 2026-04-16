@@ -50,8 +50,18 @@ export async function handleMessages(c: Context) {
     throw err;
   }
 
-  // 3. Forward to Copilot API
-  const body = await c.req.text();
+  // 3. Forward to Copilot API (inject max_tokens default if missing)
+  const raw = await c.req.text();
+  let body = raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.max_tokens == null) {
+      parsed.max_tokens = 16384;
+      body = JSON.stringify(parsed);
+    }
+  } catch {
+    // invalid JSON — let upstream reject it
+  }
   console.log(`[${requestId}] POST /v1/messages`);
   const upstream = await createMessages(copilotToken, body);
 
