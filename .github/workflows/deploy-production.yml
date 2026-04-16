@@ -1,4 +1,4 @@
-name: Deploy Azure Web App Container
+name: Deploy to Production
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Configure Web App container
+      - name: Deploy to production
         uses: azure/cli@v2
         with:
           inlineScript: |
