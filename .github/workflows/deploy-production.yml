@@ -1,18 +1,7 @@
-name: Deploy Azure Web App Container
+name: Deploy to Production
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-    inputs:
-      target:
-        description: "Deploy target"
-        type: choice
-        options:
-          - staging
-          - production
-        default: staging
 
 permissions:
   contents: read
@@ -53,21 +42,12 @@ jobs:
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Select target Web App
-        id: target
-        run: |
-          if [ "${{ github.event.inputs.target }}" = "production" ]; then
-            echo "webapp_name=${{ secrets.AZURE_WEBAPP_NAME }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "webapp_name=${{ secrets.AZURE_WEBAPP_NAME_STAGING }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Configure Web App container
+      - name: Deploy to production
         uses: azure/cli@v2
         with:
           inlineScript: |
             az webapp config container set \
-              --name "${{ steps.target.outputs.webapp_name }}" \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
               --container-image-name "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
               --container-registry-url "https://${{ secrets.ACR_LOGIN_SERVER }}" \
@@ -75,6 +55,6 @@ jobs:
               --container-registry-password "${{ secrets.ACR_PASSWORD }}"
 
             az webapp config appsettings set \
-              --name "${{ steps.target.outputs.webapp_name }}" \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
               --settings WEBSITES_PORT=8080
