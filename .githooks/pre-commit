@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Pre-commit hook: check formatting and lint on staged files only.
+# Does NOT auto-fix — fails fast so the developer fixes it themselves.
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx)$' || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo "Running format check..."
+echo "$STAGED" | xargs npx prettier --check || {
+  echo "Fix with: pnpm run format"
+  exit 1
+}
+
+echo "Running lint..."
+echo "$STAGED" | xargs npx eslint || {
+  echo "Fix with: pnpm run lint:fix"
+  exit 1
+}
