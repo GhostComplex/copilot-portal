@@ -57,15 +57,21 @@ Vitest is configured only in `packages/core`. Tests live in `packages/core/tests
 
 Deployments are triggered by tag pushes, not branch pushes:
 
-- **Staging**: push a `staging-YYYYMMDD` tag (e.g. `git tag staging-20260416 && git push origin staging-20260416`)
+- **Staging**: push a `staging-YYYYMMDD.XX` tag where XX is the deploy sequence for that day (e.g. `git tag staging-20260416.01 && git push origin staging-20260416.01`)
 - **Production**: push a `release-X.Y.Z` tag (e.g. `git tag release-1.0.0 && git push origin release-1.0.0`)
 
 Both environments build a Docker image, push it to ACR, and update the Azure Web App container config.
 
 The pre-push hook (`.githooks/pre-push`) validates tags on push:
-1. Tag must match `staging-YYYYMMDD` or `release-X.Y.Z` format
+1. Tag must match `staging-YYYYMMDD.XX` or `release-X.Y.Z` format
 2. Tag must not already exist on the remote
 3. Release tag version must match the root `package.json` `version` field
+
+## Git Conventions
+
+- **Branch naming**: `user/<user-name>/<work-item>` (e.g. `user/steins/fix-thinking-signature`)
+- **Commit/PR title prefix**: start with a type — `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `ci:` (e.g. `feat: add /v1/embeddings endpoint`)
+- **Design principle**: this project is a **transparent proxy / translation layer**. Do not add logic to fix client-side bugs (e.g. malformed content blocks, orphaned tool results). Only handle translation, routing, and passthrough concerns.
 
 ## Requirements
 

@@ -22,13 +22,19 @@ while read local_ref local_sha remote_ref remote_sha; do
 
   # --- 1. Format validation ---
   case "$TAG" in
-    staging-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
-      # Validate it's a real date (YYYYMMDD)
-      YEAR=$(echo "$TAG" | cut -c9-12)
-      MONTH=$(echo "$TAG" | cut -c13-14)
-      DAY=$(echo "$TAG" | cut -c15-16)
+    staging-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].[0-9]*)
+      # Validate date (YYYYMMDD) and sequence (.XX)
+      DATE_PART=$(echo "$TAG" | sed 's/^staging-\([0-9]\{8\}\)\..*/\1/')
+      SEQ_PART=$(echo "$TAG" | sed 's/^staging-[0-9]\{8\}\.\(.*\)/\1/')
+      YEAR=$(echo "$DATE_PART" | cut -c1-4)
+      MONTH=$(echo "$DATE_PART" | cut -c5-6)
+      DAY=$(echo "$DATE_PART" | cut -c7-8)
       if ! date -j -f "%Y%m%d" "${YEAR}${MONTH}${DAY}" >/dev/null 2>&1; then
-        echo "ERROR: Invalid date in tag '$TAG'. Expected format: staging-YYYYMMDD"
+        echo "ERROR: Invalid date in tag '$TAG'. Expected format: staging-YYYYMMDD.XX"
+        exit 1
+      fi
+      if ! echo "$SEQ_PART" | grep -qE '^[0-9]+$'; then
+        echo "ERROR: Invalid sequence in tag '$TAG'. Expected format: staging-YYYYMMDD.XX"
         exit 1
       fi
       ;;
@@ -49,7 +55,7 @@ while read local_ref local_sha remote_ref remote_sha; do
       ;;
     *)
       echo "ERROR: Tag '$TAG' does not match allowed formats:"
-      echo "  staging-YYYYMMDD   (e.g. staging-20260416)"
+      echo "  staging-YYYYMMDD.XX (e.g. staging-20260416.01)"
       echo "  release-X.Y.Z     (e.g. release-1.0.0)"
       exit 1
       ;;
