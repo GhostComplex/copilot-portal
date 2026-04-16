@@ -122,6 +122,11 @@ function handleAssistantMessage(
     return [{ role: "assistant", content: message.content }];
   }
 
+  // Filter out messages with empty content array - these cause 400 errors from Claude API
+  if (!Array.isArray(message.content) || message.content.length === 0) {
+    return [];
+  }
+
   const toolUseBlocks = message.content.filter(
     (block): block is AnthropicToolUseBlock => block.type === "tool_use"
   );
@@ -135,7 +140,9 @@ function handleAssistantMessage(
   const allTextContent = [
     ...textBlocks.map((b) => b.text),
     ...thinkingBlocks.map((b) => b.thinking),
-  ].join("\n\n");
+  ]
+    .filter((text) => text && text.trim()) // Filter out empty strings
+    .join("\n\n");
 
   if (toolUseBlocks.length > 0) {
     return [
@@ -154,7 +161,12 @@ function handleAssistantMessage(
     ];
   }
 
-  return [{ role: "assistant", content: allTextContent || null }];
+  // If no tool calls and no text content, skip this message entirely
+  if (!allTextContent) {
+    return [];
+  }
+
+  return [{ role: "assistant", content: allTextContent }];
 }
 
 function mapContent(
