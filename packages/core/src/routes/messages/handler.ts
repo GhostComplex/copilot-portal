@@ -28,9 +28,12 @@ import {
 } from "./stream-translation";
 
 export async function handleMessages(c: Context) {
+  const requestId = crypto.randomUUID().slice(0, 8);
+
   // 1. Extract GitHub token
   const githubToken = extractToken(c.req.header("Authorization"));
   if (!githubToken) {
+    console.warn(`[${requestId}] POST /v1/messages — 401 missing auth`);
     return c.json(
       {
         type: "error",
@@ -49,6 +52,7 @@ export async function handleMessages(c: Context) {
     copilotToken = await getCopilotToken(githubToken);
   } catch (err) {
     if (err instanceof TokenExchangeError) {
+      console.error(`[${requestId}] Token exchange failed: ${err.message}`);
       return c.json(
         {
           type: "error",
@@ -68,6 +72,7 @@ export async function handleMessages(c: Context) {
   try {
     anthropicPayload = await c.req.json<AnthropicMessagesPayload>();
   } catch {
+    console.warn(`[${requestId}] Invalid JSON in request body`);
     return c.json(
       {
         type: "error",
@@ -79,6 +84,11 @@ export async function handleMessages(c: Context) {
       400
     );
   }
+
+  console.log(
+    `[${requestId}] POST /v1/messages model=${anthropicPayload.model} stream=${!!anthropicPayload.stream} messages=${anthropicPayload.messages.length}`
+  );
+
   const openaiPayload = translateToOpenAI(anthropicPayload);
 
   // 4. Forward to Copilot API
@@ -90,6 +100,9 @@ export async function handleMessages(c: Context) {
   // 5. Handle upstream errors
   if (!upstream.ok) {
     const errorText = await upstream.text();
+    console.error(
+      `[${requestId}] Upstream error ${upstream.status}: ${errorText}`
+    );
     return c.json(
       {
         type: "error",
