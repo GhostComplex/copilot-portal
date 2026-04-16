@@ -209,6 +209,22 @@ export async function createChatCompletions(
 }
 
 /**
+ * Forward Anthropic messages request to Copilot API.
+ * Returns raw Response for streaming support.
+ */
+export async function createMessages(
+  copilotToken: string,
+  body: string
+): Promise<Response> {
+  const headers = await buildCopilotHeaders(copilotToken);
+  return fetch(`${COPILOT_API_BASE_URL}/v1/messages`, {
+    method: "POST",
+    headers,
+    body,
+  });
+}
+
+/**
  * Get available models from Copilot API.
  */
 export async function getModels(copilotToken: string): Promise<Response> {
