@@ -52,7 +52,7 @@ jobs:
         with:
           inlineScript: |
             az webapp config container set \
-              --name "${{ secrets.AZURE_WEBAPP_NAME_STAGING }}" \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
               --container-image-name "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" \
               --container-registry-url "https://${{ secrets.ACR_LOGIN_SERVER }}" \
@@ -60,6 +60,6 @@ jobs:
               --container-registry-password "${{ secrets.ACR_PASSWORD }}"
 
             az webapp config appsettings set \
-              --name "${{ secrets.AZURE_WEBAPP_NAME_STAGING }}" \
+              --name "${{ secrets.AZURE_WEBAPP_NAME }}" \
               --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
               --settings WEBSITES_PORT=8080
