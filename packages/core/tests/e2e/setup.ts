@@ -20,5 +20,5 @@ try {
     }
   }
 } catch {
-  // .env.test not found — tests will be skipped
+  // .env.test not found — tests will fail loudly on backend check
 }

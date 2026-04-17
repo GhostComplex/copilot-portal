@@ -257,6 +257,22 @@ export async function createMessages(
 }
 
 /**
+ * Forward OpenAI Responses API request to Copilot API.
+ * Returns raw Response for streaming support.
+ */
+export async function createResponses(
+  copilotToken: string,
+  body: string
+): Promise<Response> {
+  const headers = await buildCopilotHeaders(copilotToken);
+  return fetch(`${COPILOT_API_BASE_URL}/responses`, {
+    method: "POST",
+    headers,
+    body,
+  });
+}
+
+/**
  * Get available models from Copilot API.
  */
 export async function getModels(copilotToken: string): Promise<Response> {

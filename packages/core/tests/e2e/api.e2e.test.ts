@@ -1,18 +1,33 @@
 /**
- * E2E tests — hit real Copilot API through the proxy.
- * Requires GITHUB_TOKEN in .env.test or environment.
- * Runs serially to avoid rate-limiting.
+ * E2E tests — hit real Copilot API through the proxy running on localhost:3000.
+ * Start the backend first with `pnpm dev`. Requires GITHUB_TOKEN in
+ * tests/e2e/.env.test or environment. Runs serially to avoid rate-limiting.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import app from "../../src/index";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const baseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const authHeader = { Authorization: `Bearer ${GITHUB_TOKEN}` };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
+describe("E2E: real Copilot API", () => {
+  beforeAll(async () => {
+    if (!GITHUB_TOKEN) {
+      throw new Error(
+        "GITHUB_TOKEN missing — set it in packages/core/tests/e2e/.env.test or export in shell."
+      );
+    }
+    try {
+      await fetch(baseUrl + "/health");
+    } catch {
+      throw new Error(
+        `Backend not reachable at ${baseUrl} — start it with \`pnpm dev\` and re-run.`
+      );
+    }
+  });
+
   // 2s delay between tests to avoid rate-limiting
   beforeEach(async () => {
     await sleep(2000);
@@ -20,7 +35,7 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
   // --- Models ---
 
   it("GET /v1/models returns model list", async () => {
-    const res = await app.request("/v1/models", {
+    const res = await fetch(baseUrl + "/v1/models", {
       headers: authHeader,
     });
 
@@ -34,7 +49,7 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
   // --- Chat Completions ---
 
   it("POST /v1/chat/completions non-streaming", async () => {
-    const res = await app.request("/v1/chat/completions", {
+    const res = await fetch(baseUrl + "/v1/chat/completions", {
       method: "POST",
       headers: {
         ...authHeader,
@@ -55,7 +70,7 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
   });
 
   it("POST /v1/chat/completions streaming", async () => {
-    const res = await app.request("/v1/chat/completions", {
+    const res = await fetch(baseUrl + "/v1/chat/completions", {
       method: "POST",
       headers: {
         ...authHeader,
@@ -78,7 +93,7 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
   // --- Messages (Anthropic-compatible) ---
 
   it("POST /v1/messages non-streaming", async () => {
-    const res = await app.request("/v1/messages", {
+    const res = await fetch(baseUrl + "/v1/messages", {
       method: "POST",
       headers: {
         ...authHeader,
@@ -102,7 +117,7 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
   });
 
   it("POST /v1/messages without max_tokens uses default", async () => {
-    const res = await app.request("/v1/messages", {
+    const res = await fetch(baseUrl + "/v1/messages", {
       method: "POST",
       headers: {
         ...authHeader,
@@ -122,7 +137,7 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
   });
 
   it("POST /v1/messages streaming", async () => {
-    const res = await app.request("/v1/messages", {
+    const res = await fetch(baseUrl + "/v1/messages", {
       method: "POST",
       headers: {
         ...authHeader,
@@ -140,5 +155,47 @@ describe.skipIf(!GITHUB_TOKEN)("E2E: real Copilot API", () => {
     const text = await res.text();
     expect(text).toContain("message_start");
     expect(text).toContain("message_stop");
+  });
+
+  // --- Responses (OpenAI Responses API) ---
+
+  it("POST /v1/responses non-streaming", async () => {
+    const res = await fetch(baseUrl + "/v1/responses", {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-5.4",
+        input: [{ role: "user", content: "Say hello in one word." }],
+        stream: false,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toHaveProperty("id");
+    expect(data).toHaveProperty("created_at");
+  });
+
+  it("POST /v1/responses streaming", async () => {
+    const res = await fetch(baseUrl + "/v1/responses", {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-5.4",
+        input: [{ role: "user", content: "Say hi." }],
+        stream: true,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("event: response.created");
+    expect(text).toContain("event: response.completed");
   });
 });
