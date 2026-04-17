@@ -5,36 +5,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../src/index";
 
-// Mock services
-vi.mock("../src/services/copilot", () => ({
-  getCopilotToken: vi.fn(),
-  createChatCompletions: vi.fn(),
-  createMessages: vi.fn(),
-  getModels: vi.fn(),
-  clearTokenCache: vi.fn(),
-  isTokenValid: vi.fn(),
-  filterAnthropicBeta: (raw: string | undefined | null, model?: string) => {
-    if (!raw) return undefined;
-    const isOpus47 = model?.startsWith("claude-opus-4.7") ?? false;
-    const kept = raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => {
-        if (s === "context-management-2025-06-27") return true;
-        if (s === "advanced-tool-use-2025-11-20") return true;
-        if (s === "interleaved-thinking-2025-05-14") return !isOpus47;
-        return false;
-      });
-    return kept.length > 0 ? kept.join(",") : undefined;
-  },
-  TokenExchangeError: class TokenExchangeError extends Error {
-    statusCode: number;
-    constructor(message: string, statusCode: number) {
-      super(message);
-      this.statusCode = statusCode;
-    }
-  },
-}));
+// Mock network-touching services; keep pure helpers (filterAnthropicBeta,
+// TokenExchangeError) from the real module so tests exercise real logic.
+vi.mock("../src/services/copilot", async (importActual) => {
+  const actual = await importActual<typeof import("../src/services/copilot")>();
+  return {
+    ...actual,
+    getCopilotToken: vi.fn(),
+    createChatCompletions: vi.fn(),
+    createMessages: vi.fn(),
+    getModels: vi.fn(),
+  };
+});
 
 import {
   getCopilotToken,
@@ -260,36 +242,32 @@ describe("POST /v1/messages", () => {
     expect(sent.output_config).toEqual({ effort: "medium" });
   });
 
-  it("maps thinking budget_tokens to effort buckets for claude-opus-4.7", async () => {
+  it("ignores thinking.budget_tokens for claude-opus-4.7 (always maps to medium)", async () => {
+    // 4.7 currently accepts only `effort: "medium"`. Any budget_tokens value
+    // the client sends is irrelevant — the rewrite drops it entirely.
     mockGetCopilotToken.mockResolvedValue("copilot-token");
-    // claude-opus-4.7 currently only accepts `effort: "medium"`, regardless
-    // of the requested budget_tokens.
-    const budgets = [1024, 2048, 8000, 16000, 32000];
+    mockCreateMessages.mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
 
-    for (const budget of budgets) {
-      mockCreateMessages.mockReset();
-      mockCreateMessages.mockResolvedValue(
-        new Response("{}", {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      );
+    const body = JSON.stringify({
+      model: "claude-opus-4.7",
+      max_tokens: 1024,
+      thinking: { type: "enabled", budget_tokens: 32000 },
+      messages: [{ role: "user", content: "Hi" }],
+    });
 
-      const body = JSON.stringify({
-        model: "claude-opus-4.7",
-        max_tokens: 1024,
-        thinking: { type: "enabled", budget_tokens: budget },
-        messages: [{ role: "user", content: "Hi" }],
-      });
+    await app.request(
+      "/v1/messages",
+      makeRequest(body, { Authorization: "Bearer ghu_test" })
+    );
 
-      await app.request(
-        "/v1/messages",
-        makeRequest(body, { Authorization: "Bearer ghu_test" })
-      );
-
-      const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
-      expect(sent.output_config.effort).toBe("medium");
-    }
+    const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
+    expect(sent.output_config.effort).toBe("medium");
+    expect(sent.thinking).toEqual({ type: "adaptive" });
   });
 
   it("does not rewrite thinking for non-4.7 models", async () => {
@@ -338,7 +316,9 @@ describe("POST /v1/messages", () => {
       })
     );
 
-    expect(mockCreateMessages.mock.calls[0][2]).toBe(
+    expect(mockCreateMessages).toHaveBeenCalledWith(
+      "copilot-token",
+      expect.any(String),
       "context-management-2025-06-27,interleaved-thinking-2025-05-14"
     );
   });
@@ -357,7 +337,11 @@ describe("POST /v1/messages", () => {
       makeRequest(validAnthropicBody, { Authorization: "Bearer ghu_test" })
     );
 
-    expect(mockCreateMessages.mock.calls[0][2]).toBeUndefined();
+    expect(mockCreateMessages).toHaveBeenCalledWith(
+      "copilot-token",
+      expect.any(String),
+      undefined
+    );
   });
 
   it("drops anthropic-beta entirely when no values are allowed", async () => {
@@ -377,7 +361,11 @@ describe("POST /v1/messages", () => {
       })
     );
 
-    expect(mockCreateMessages.mock.calls[0][2]).toBeUndefined();
+    expect(mockCreateMessages).toHaveBeenCalledWith(
+      "copilot-token",
+      expect.any(String),
+      undefined
+    );
   });
 
   it("strips interleaved-thinking beta for claude-opus-4.7", async () => {
@@ -404,7 +392,9 @@ describe("POST /v1/messages", () => {
       })
     );
 
-    expect(mockCreateMessages.mock.calls[0][2]).toBe(
+    expect(mockCreateMessages).toHaveBeenCalledWith(
+      "copilot-token",
+      expect.any(String),
       "context-management-2025-06-27"
     );
   });
