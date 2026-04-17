@@ -10,6 +10,7 @@ import {
   TokenExchangeError,
 } from "../../services/copilot";
 import { extractToken } from "../../lib/utils";
+import { rewriteRequestBody } from "./rewrite";
 
 export async function handleMessages(c: Context) {
   const requestId = crypto.randomUUID().slice(0, 8);
@@ -51,42 +52,9 @@ export async function handleMessages(c: Context) {
     throw err;
   }
 
-  // 3. Forward to Copilot API (inject max_tokens default if missing)
-  const raw = await c.req.text();
-  let body = raw;
-  let model: string | undefined;
-  try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed.model === "string") {
-      model = parsed.model;
-    }
-    let mutated = false;
-    if (parsed.max_tokens == null) {
-      parsed.max_tokens = 16384;
-      mutated = true;
-    }
-    // claude-opus-4.7 rejects `thinking.type = "enabled"` and requires
-    // `thinking.type = "adaptive"` + `output_config.effort` instead.
-    // As of 2026-04, 4.7 only accepts `effort: "medium"`.
-    if (
-      typeof model === "string" &&
-      model.startsWith("claude-opus-4.7") &&
-      parsed.thinking &&
-      parsed.thinking.type === "enabled"
-    ) {
-      parsed.thinking = { type: "adaptive" };
-      parsed.output_config = {
-        ...(parsed.output_config ?? {}),
-        effort: "medium",
-      };
-      mutated = true;
-    }
-    if (mutated) {
-      body = JSON.stringify(parsed);
-    }
-  } catch {
-    // invalid JSON — let upstream reject it
-  }
+  // 3. Rewrite request body (inject defaults, model-specific shape fixes)
+  const { body, model } = rewriteRequestBody(await c.req.text());
+
   console.log(`[${requestId}] POST /v1/messages`);
   const anthropicBeta = filterAnthropicBeta(
     c.req.header("anthropic-beta"),
