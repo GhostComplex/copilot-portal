@@ -6,6 +6,7 @@ vi.mock("../src/services/copilot", () => ({
   getCopilotToken: vi.fn(),
   createChatCompletions: vi.fn(),
   createMessages: vi.fn(),
+  createResponses: vi.fn(),
   getModels: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("../src/services/copilot", () => ({
 import {
   getCopilotToken,
   createChatCompletions,
+  createResponses,
   getModels,
   TokenExchangeError,
 } from "../src/services/copilot";
@@ -29,6 +31,7 @@ const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
 const mockCreateChatCompletions = createChatCompletions as ReturnType<
   typeof vi.fn
 >;
+const mockCreateResponses = createResponses as ReturnType<typeof vi.fn>;
 const mockGetModels = getModels as ReturnType<typeof vi.fn>;
 
 describe("GET /health", () => {
@@ -214,6 +217,156 @@ describe("POST /v1/chat/completions", () => {
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
     expect(res.headers.get("Cache-Control")).toBe("no-cache");
     expect(res.headers.get("Connection")).toBe("keep-alive");
+  });
+});
+
+describe("POST /v1/responses", () => {
+  beforeEach(() => {
+    mockGetCopilotToken.mockReset();
+    mockCreateResponses.mockReset();
+  });
+
+  it("returns 401 without auth header", async () => {
+    const res = await app.request("/v1/responses", {
+      method: "POST",
+      body: "{}",
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("forwards request on valid auth", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateResponses.mockResolvedValue(
+      new Response(JSON.stringify({ id: "resp_1", object: "response" }), {
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const res = await app.request("/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer github-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-4o-mini", input: "hi" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockGetCopilotToken).toHaveBeenCalledWith("github-token");
+    expect(mockCreateResponses).toHaveBeenCalledWith(
+      "copilot-token",
+      JSON.stringify({ model: "gpt-4o-mini", input: "hi" })
+    );
+  });
+
+  it("returns error on token exchange failure", async () => {
+    mockGetCopilotToken.mockRejectedValue(
+      new TokenExchangeError("Invalid token", 401)
+    );
+
+    const res = await app.request("/v1/responses", {
+      method: "POST",
+      headers: { Authorization: "Bearer bad-token" },
+      body: "{}",
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("returns upstream error on non-ok response", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateResponses.mockResolvedValue(
+      new Response("bad request", { status: 400 })
+    );
+
+    const res = await app.request("/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer ghu_test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-4o-mini", input: "hi" }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Upstream error");
+  });
+
+  it("sets SSE headers for streaming response", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode("event: response.created\ndata: {}\n\n")
+        );
+        controller.close();
+      },
+    });
+
+    mockCreateResponses.mockResolvedValue(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+
+    const res = await app.request("/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer ghu_test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        input: "hi",
+        stream: true,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    expect(res.headers.get("Cache-Control")).toBe("no-cache");
+    expect(res.headers.get("Connection")).toBe("keep-alive");
+  });
+
+  it("passes SSE body through unchanged", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+
+    const encoder = new TextEncoder();
+    const chunks = [
+      'event: response.created\ndata: {"id":"r1"}\n\n',
+      'event: response.output_text.delta\ndata: {"delta":"hi"}\n\n',
+      'event: response.completed\ndata: {"id":"r1"}\n\n',
+    ];
+    const stream = new ReadableStream({
+      start(controller) {
+        for (const c of chunks) controller.enqueue(encoder.encode(c));
+        controller.close();
+      },
+    });
+
+    mockCreateResponses.mockResolvedValue(
+      new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+
+    const res = await app.request("/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer ghu_test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.4", input: "hi", stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe(chunks.join(""));
   });
 });
 
