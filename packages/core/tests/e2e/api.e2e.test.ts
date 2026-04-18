@@ -157,6 +157,31 @@ describe("E2E: real Copilot API", () => {
     expect(text).toContain("message_stop");
   });
 
+  it("POST /v1/messages with context-1m beta resolves to -1m model variant", async () => {
+    // Verifies the rewrite chain end-to-end: client sends `anthropic-beta:
+    // context-1m-*` + base model name, proxy translates to `<model>-1m`
+    // (Copilot upstream rejects the beta but accepts the suffix).
+    const res = await fetch(baseUrl + "/v1/messages", {
+      method: "POST",
+      headers: {
+        ...authHeader,
+        "Content-Type": "application/json",
+        "anthropic-beta": "context-1m-2025-08-07",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4.6",
+        max_tokens: 10,
+        stream: false,
+        messages: [{ role: "user", content: "Say hello in one word." }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.type).toBe("message");
+    expect(data.content[0].text).toBeTruthy();
+  });
+
   // --- Responses (OpenAI Responses API) ---
 
   it("POST /v1/responses non-streaming", async () => {
