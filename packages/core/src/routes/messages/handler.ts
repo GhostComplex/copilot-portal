@@ -52,14 +52,13 @@ export async function handleMessages(c: Context) {
     throw err;
   }
 
-  // 3. Rewrite request body (inject defaults, model-specific shape fixes)
-  const { body, model } = rewriteRequestBody(await c.req.text());
+  // 3. Rewrite request body (inject defaults, model-specific shape fixes,
+  //    map context-1m/fast-mode beta → model name suffix).
+  const rawBeta = c.req.header("anthropic-beta");
+  const { body, model } = rewriteRequestBody(await c.req.text(), rawBeta);
 
   console.log(`[${requestId}] POST /v1/messages`);
-  const anthropicBeta = filterAnthropicBeta(
-    c.req.header("anthropic-beta"),
-    model
-  );
+  const anthropicBeta = filterAnthropicBeta(rawBeta, model);
   const upstream = await createMessages(copilotToken, body, anthropicBeta);
 
   if (!upstream.ok) {

@@ -10,12 +10,38 @@
 const DEFAULT_MAX_TOKENS = 16384;
 
 type Parsed = Record<string, unknown>;
-type Rule = (parsed: Parsed, model: string | undefined) => Parsed;
+type Rule = (
+  parsed: Parsed,
+  model: string | undefined,
+  beta: string | undefined
+) => Parsed;
 
 const injectDefaultMaxTokens: Rule = (parsed) =>
   parsed.max_tokens == null
     ? { ...parsed, max_tokens: DEFAULT_MAX_TOKENS }
     : parsed;
+
+/**
+ * Copilot upstream rejects `anthropic-beta: context-1m-*` and `fast-mode-*`,
+ * but exposes the same variants via model-name suffixes (`-1m`, `-fast`).
+ * When the client signals these via the beta header, append the suffix to
+ * the model name so the upstream actually selects the variant.
+ */
+const VARIANT_SUFFIXES: ReadonlyArray<{ prefix: string; suffix: string }> = [
+  { prefix: "context-1m-", suffix: "-1m" },
+  { prefix: "fast-mode-", suffix: "-fast" },
+];
+
+const resolveModelVariant: Rule = (parsed, model, beta) => {
+  if (!model || !beta) return parsed;
+  const tokens = beta.split(",").map((s) => s.trim());
+  let next = model;
+  for (const { prefix, suffix } of VARIANT_SUFFIXES) {
+    const present = tokens.some((t) => t.startsWith(prefix));
+    if (present && !next.endsWith(suffix)) next += suffix;
+  }
+  return next === model ? parsed : { ...parsed, model: next };
+};
 
 /**
  * claude-opus-4.7 rejects `thinking.type = "enabled"` and requires
@@ -35,14 +61,18 @@ const rewriteOpus47Thinking: Rule = (parsed, model) => {
   };
 };
 
-const RULES: readonly Rule[] = [injectDefaultMaxTokens, rewriteOpus47Thinking];
+const RULES: readonly Rule[] = [
+  resolveModelVariant,
+  injectDefaultMaxTokens,
+  rewriteOpus47Thinking,
+];
 
 export interface RewriteResult {
   body: string;
   model: string | undefined;
 }
 
-export function rewriteRequestBody(raw: string): RewriteResult {
+export function rewriteRequestBody(raw: string, beta?: string): RewriteResult {
   let parsed: Parsed;
   try {
     parsed = JSON.parse(raw);
@@ -50,8 +80,12 @@ export function rewriteRequestBody(raw: string): RewriteResult {
     // invalid JSON — let upstream reject it, forward raw unchanged.
     return { body: raw, model: undefined };
   }
-  const model = typeof parsed.model === "string" ? parsed.model : undefined;
-  const rewritten = RULES.reduce((acc, rule) => rule(acc, model), parsed);
+  const rewritten = RULES.reduce((acc, rule) => {
+    const m = typeof acc.model === "string" ? acc.model : undefined;
+    return rule(acc, m, beta);
+  }, parsed);
+  const finalModel =
+    typeof rewritten.model === "string" ? rewritten.model : undefined;
   const body = rewritten === parsed ? raw : JSON.stringify(rewritten);
-  return { body, model };
+  return { body, model: finalModel };
 }
