@@ -135,13 +135,13 @@ describe("rewriteRequestBody", () => {
 
   it("appends both -1m and -fast suffixes when both betas are present", () => {
     const raw = JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "fake-model",
       max_tokens: 1024,
     });
     const sent = JSON.parse(
       rewriteRequestBody(raw, "context-1m-2025-08-07,fast-mode-2025-09-01").body
     );
-    expect(sent.model).toBe("claude-sonnet-4-6-1m-fast");
+    expect(sent.model).toBe("fake-model-1m-fast");
   });
 
   it("ignores variant betas when no model is present", () => {
