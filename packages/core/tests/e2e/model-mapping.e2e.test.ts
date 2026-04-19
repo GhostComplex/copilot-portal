@@ -47,10 +47,15 @@ describe("E2E: /v1/messages model + beta mapping (snapshot 2026-04-19)", () => {
       );
     }
     try {
-      await fetch(baseUrl + "/health");
-    } catch {
+      const res = await fetch(baseUrl + "/health");
+      if (!res.ok) {
+        throw new Error(
+          `Backend at ${baseUrl} returned ${res.status} on /health.`
+        );
+      }
+    } catch (err) {
       throw new Error(
-        `Backend not reachable at ${baseUrl} — start it with \`pnpm dev\`.`
+        `Backend not reachable at ${baseUrl} — start it with \`pnpm dev\`. (${(err as Error).message})`
       );
     }
   });
