@@ -60,6 +60,22 @@ No `-fast` variants exist anywhere in the catalog.
 - **Bug 3 — dead `-fast` branch.** No `-fast` variants exist; the rule guarantees a 404 whenever it fires.
 - **Bug 4 — `startsWith("claude-opus-4.7")` blind to dash/date forms.** Both `rewriteOpus47Thinking` and `filterAnthropicBeta` miss `claude-opus-4-7` and `claude-opus-4-7-20250514`, so the thinking rewrite is skipped and `interleaved-thinking-*` is forwarded to a model that rejects it.
 
+## Response `model` echo quirk
+
+The upstream response body's `model` field is **not** the id we forwarded — Copilot canonicalizes it before echoing:
+
+- dot form is replaced with dash (`claude-opus-4.6` → `claude-opus-4-6`)
+- variant suffix is stripped (`claude-opus-4.6-1m` → `claude-opus-4-6`, with `-1m` dropped)
+
+Verified 2026-04-19: posting `claude-opus-4.6` and `claude-opus-4.6-1m` both echo back `claude-opus-4-6`.
+
+Implications:
+
+1. **Cannot infer 1M activation from `response.model`.** The echoed id is identical with or without the `-1m` variant. Confirm 1M by token-usage limits or by sending a >200k-token prompt.
+2. **Round-trip footgun.** Feeding `response.model` straight back into the next request body will 4xx — input accepts dot form only, but echo is dash. Clients should keep their own canonical model id rather than copying from the response.
+
+Per CLAUDE.md (transparent proxy principle), the portal does not rewrite the echoed field.
+
 ## Reproducing
 
 ```bash
