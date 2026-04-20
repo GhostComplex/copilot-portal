@@ -8,12 +8,11 @@ Defined in `packages/core/src/routes/messages/rewrite.ts` and `packages/core/src
 
 1. **Default `max_tokens`** — inject `16384` if absent.
 2. **Opus 4.7 thinking rewrite** — if `model` starts with `claude-opus-4.7` and `thinking.type === "enabled"`, rewrite to `thinking={type:"adaptive"}` + `output_config.effort="medium"`.
-3. **Beta header whitelist** (`filterAnthropicBeta`) — keep only:
-   - `context-management-2025-06-27`
-   - `advanced-tool-use-2025-11-20`
+3. **Beta header blocklist** (`filterAnthropicBeta`) — drop only:
+   - `context-1m-2025-08-07` (upstream rejects it)
    - `interleaved-thinking-2025-05-14` (dropped for `claude-opus-4.7*`)
 
-   Everything else is dropped before forwarding.
+   All other betas are forwarded as-is.
 
 ## Response `model` echo quirk
 
