@@ -157,10 +157,7 @@ describe("E2E: real Copilot API", () => {
     expect(text).toContain("message_stop");
   });
 
-  it("POST /v1/messages with context-1m beta resolves to -1m model variant", async () => {
-    // Verifies the rewrite chain end-to-end: client sends `anthropic-beta:
-    // context-1m-*` + base model name, proxy translates to `<model>-1m`
-    // (Copilot upstream rejects the beta but accepts the suffix).
+  it("POST /v1/messages succeeds when context-1m beta header is present", async () => {
     const res = await fetch(baseUrl + "/v1/messages", {
       method: "POST",
       headers: {
