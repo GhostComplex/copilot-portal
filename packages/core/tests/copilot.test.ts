@@ -151,14 +151,24 @@ describe("filterAnthropicBeta", () => {
     ).toBe("context-management-2025-06-27");
   });
 
-  it("drops unknown betas and returns undefined when nothing remains", () => {
-    expect(filterAnthropicBeta("some-unknown-beta")).toBeUndefined();
+  it("passes through unknown betas", () => {
+    expect(filterAnthropicBeta("some-unknown-beta")).toBe("some-unknown-beta");
+  });
+
+  it("drops context-1m beta", () => {
+    expect(filterAnthropicBeta("context-1m-2025-08-07")).toBeUndefined();
+  });
+
+  it("drops context-1m but keeps other betas", () => {
+    expect(
+      filterAnthropicBeta("context-1m-2025-08-07,context-management-2025-06-27")
+    ).toBe("context-management-2025-06-27");
   });
 
   it("trims whitespace around entries", () => {
     expect(
-      filterAnthropicBeta(" context-management-2025-06-27 , unknown ")
-    ).toBe("context-management-2025-06-27");
+      filterAnthropicBeta(" context-management-2025-06-27 , some-other-beta ")
+    ).toBe("context-management-2025-06-27,some-other-beta");
   });
 });
 

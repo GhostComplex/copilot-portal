@@ -52,10 +52,9 @@ export async function handleMessages(c: Context) {
     throw err;
   }
 
-  // 3. Rewrite request body (inject defaults, model-specific shape fixes,
-  //    map context-1m/fast-mode beta → model name suffix).
+  // 3. Rewrite request body (inject defaults, model-specific shape fixes).
   const rawBeta = c.req.header("anthropic-beta");
-  const { body, model } = rewriteRequestBody(await c.req.text(), rawBeta);
+  const { body, model } = rewriteRequestBody(await c.req.text());
 
   console.log(`[${requestId}] POST /v1/messages`);
   const anthropicBeta = filterAnthropicBeta(rawBeta, model);

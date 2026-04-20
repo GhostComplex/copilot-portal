@@ -319,7 +319,7 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       expect.any(String),
-      "context-management-2025-06-27,interleaved-thinking-2025-05-14"
+      "context-management-2025-06-27,some-unknown-beta,interleaved-thinking-2025-05-14"
     );
   });
 
@@ -344,7 +344,7 @@ describe("POST /v1/messages", () => {
     );
   });
 
-  it("drops anthropic-beta entirely when no values are allowed", async () => {
+  it("forwards unknown betas to upstream", async () => {
     mockGetCopilotToken.mockResolvedValue("copilot-token");
     mockCreateMessages.mockResolvedValue(
       new Response("{}", {
@@ -364,7 +364,7 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       expect.any(String),
-      undefined
+      "unknown-beta-1,unknown-beta-2"
     );
   });
 
@@ -397,66 +397,6 @@ describe("POST /v1/messages", () => {
       expect.any(String),
       "context-management-2025-06-27"
     );
-  });
-
-  // --- 1M context: context-1m beta → model name suffix ---
-
-  it("rewrites model to -1m suffix and drops context-1m beta header", async () => {
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateMessages.mockResolvedValue(
-      new Response("{}", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const body = JSON.stringify({
-      model: "claude-opus-4.6",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: "Hi" }],
-    });
-
-    await app.request(
-      "/v1/messages",
-      makeRequest(body, {
-        Authorization: "Bearer ghu_test",
-        "anthropic-beta": "context-1m-2025-08-07",
-      })
-    );
-
-    const [, sentBody, sentBeta] = mockCreateMessages.mock.calls[0];
-    expect(JSON.parse(sentBody as string).model).toBe("claude-opus-4.6-1m");
-    // Upstream rejects context-1m-* — must not be forwarded.
-    expect(sentBeta).toBeUndefined();
-  });
-
-  it("keeps context-management beta while rewriting model to -1m", async () => {
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateMessages.mockResolvedValue(
-      new Response("{}", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const body = JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: "Hi" }],
-    });
-
-    await app.request(
-      "/v1/messages",
-      makeRequest(body, {
-        Authorization: "Bearer ghu_test",
-        "anthropic-beta":
-          "context-1m-2025-08-07, context-management-2025-06-27",
-      })
-    );
-
-    const [, sentBody, sentBeta] = mockCreateMessages.mock.calls[0];
-    expect(JSON.parse(sentBody as string).model).toBe("claude-sonnet-4-6-1m");
-    expect(sentBeta).toBe("context-management-2025-06-27");
   });
 
   // --- Passthrough: streaming ---

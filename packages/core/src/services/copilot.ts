@@ -107,14 +107,12 @@ async function buildCopilotHeaders(
 }
 
 /**
- * Filter the client's `anthropic-beta` header down to betas that are
- * supported by the Copilot upstream for the given model. Returns
- * `undefined` if nothing remains.
+ * Filter the client's `anthropic-beta` header, removing betas that the
+ * Copilot upstream rejects. Returns `undefined` if nothing remains.
  *
- * - `context-management-2025-06-27` and `advanced-tool-use-2025-11-20`
- *   are universally supported.
- * - `interleaved-thinking-2025-05-14` is supported on all Claude models
- *   except `claude-opus-4.7*`, which rejects it.
+ * - `context-1m-2025-08-07` is rejected upstream (400 "unsupported beta").
+ * - `interleaved-thinking-2025-05-14` is rejected by `claude-opus-4.7*`.
+ * - All other betas are forwarded as-is.
  */
 export function filterAnthropicBeta(
   raw: string | undefined | null,
@@ -126,10 +124,9 @@ export function filterAnthropicBeta(
     .split(",")
     .map((s) => s.trim())
     .filter((s) => {
-      if (s === "context-management-2025-06-27") return true;
-      if (s === "advanced-tool-use-2025-11-20") return true;
+      if (s === "context-1m-2025-08-07") return false;
       if (s === "interleaved-thinking-2025-05-14") return !isOpus47;
-      return false;
+      return true;
     });
   return kept.length > 0 ? kept.join(",") : undefined;
 }
