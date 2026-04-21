@@ -245,6 +245,21 @@ export async function createResponses(
 }
 
 /**
+ * Forward OpenAI embeddings request to Copilot API.
+ */
+export async function createEmbeddings(
+  copilotToken: string,
+  body: string
+): Promise<Response> {
+  const headers = await buildCopilotHeaders(copilotToken);
+  return fetch(`${COPILOT_API_BASE_URL}/embeddings`, {
+    method: "POST",
+    headers,
+    body,
+  });
+}
+
+/**
  * Get available models from Copilot API.
  */
 export async function getModels(copilotToken: string): Promise<Response> {

@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { env } from "hono/adapter";
 import { handleChatCompletion } from "./routes/chat-completions/handler";
+import { handleEmbeddings } from "./routes/embeddings/handler";
 import { handleMessages } from "./routes/messages/handler";
 import { handleModels } from "./routes/models/handler";
 import { handleResponses } from "./routes/responses/handler";
@@ -24,6 +25,7 @@ export function createApp() {
   // OpenAI-compatible endpoints
   app.post("/v1/chat/completions", handleChatCompletion);
   app.post("/v1/responses", handleResponses);
+  app.post("/v1/embeddings", handleEmbeddings);
   app.get("/v1/models", handleModels);
 
   // Anthropic-compatible endpoints

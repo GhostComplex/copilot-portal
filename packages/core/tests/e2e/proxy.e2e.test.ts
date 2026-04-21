@@ -210,4 +210,20 @@ describe("E2E: proxy (localhost)", () => {
     expect(text).toContain("event: response.created");
     expect(text).toContain("event: response.completed");
   });
+
+  // --- Embeddings ---
+
+  it("POST /v1/embeddings", async () => {
+    const res = await fetch(baseUrl + "/v1/embeddings", {
+      method: "POST",
+      headers: { ...authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: ["hello world"],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.data[0].embedding.length).toBeGreaterThan(0);
+  });
 });
