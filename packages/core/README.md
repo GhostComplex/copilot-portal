@@ -24,6 +24,7 @@ Run from this directory with `pnpm <script>`.
 | `format:check` | Check formatting |
 | `test` | Run the shared test suite |
 | `test:watch` | Run tests in watch mode |
+| `test:e2e` | Run e2e tests against upstream and proxy (requires `GITHUB_TOKEN`) |
 | `test:coverage` | Generate coverage for shared tests |
 
 ## Notes

@@ -6,11 +6,10 @@ import type { Context } from "hono";
 import {
   getCopilotToken,
   createMessages,
-  filterAnthropicBeta,
   TokenExchangeError,
 } from "../../services/copilot";
 import { extractToken } from "../../lib/utils";
-import { rewriteRequestBody } from "./rewrite";
+import { rewriteRequestBody, filterAnthropicBeta } from "./translate";
 
 export async function handleMessages(c: Context) {
   const requestId = crypto.randomUUID().slice(0, 8);
@@ -54,10 +53,10 @@ export async function handleMessages(c: Context) {
 
   // 3. Rewrite request body (inject defaults, model-specific shape fixes).
   const rawBeta = c.req.header("anthropic-beta");
-  const { body, model } = rewriteRequestBody(await c.req.text());
+  const { body } = rewriteRequestBody(await c.req.text());
 
   console.log(`[${requestId}] POST /v1/messages`);
-  const anthropicBeta = filterAnthropicBeta(rawBeta, model);
+  const anthropicBeta = filterAnthropicBeta(rawBeta);
   const upstream = await createMessages(copilotToken, body, anthropicBeta);
 
   if (!upstream.ok) {

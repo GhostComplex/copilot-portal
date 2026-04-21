@@ -214,88 +214,6 @@ describe("POST /v1/messages", () => {
     expect(sentBody.messages).toEqual([{ role: "user", content: "Hello" }]);
   });
 
-  // --- claude-opus-4.7 thinking shape rewrite ---
-
-  it("rewrites thinking.type=enabled to adaptive+effort for claude-opus-4.7", async () => {
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateMessages.mockResolvedValue(
-      new Response("{}", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const body47 = JSON.stringify({
-      model: "claude-opus-4.7",
-      max_tokens: 1024,
-      thinking: { type: "enabled", budget_tokens: 5000 },
-      messages: [{ role: "user", content: "Hi" }],
-    });
-
-    await app.request(
-      "/v1/messages",
-      makeRequest(body47, { Authorization: "Bearer ghu_test" })
-    );
-
-    const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
-    expect(sent.thinking).toEqual({ type: "adaptive" });
-    expect(sent.output_config).toEqual({ effort: "medium" });
-  });
-
-  it("ignores thinking.budget_tokens for claude-opus-4.7 (always maps to medium)", async () => {
-    // 4.7 currently accepts only `effort: "medium"`. Any budget_tokens value
-    // the client sends is irrelevant — the rewrite drops it entirely.
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateMessages.mockResolvedValue(
-      new Response("{}", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const body = JSON.stringify({
-      model: "claude-opus-4.7",
-      max_tokens: 1024,
-      thinking: { type: "enabled", budget_tokens: 32000 },
-      messages: [{ role: "user", content: "Hi" }],
-    });
-
-    await app.request(
-      "/v1/messages",
-      makeRequest(body, { Authorization: "Bearer ghu_test" })
-    );
-
-    const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
-    expect(sent.output_config.effort).toBe("medium");
-    expect(sent.thinking).toEqual({ type: "adaptive" });
-  });
-
-  it("does not rewrite thinking for non-4.7 models", async () => {
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateMessages.mockResolvedValue(
-      new Response("{}", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const body = JSON.stringify({
-      model: "claude-opus-4.6",
-      max_tokens: 1024,
-      thinking: { type: "enabled", budget_tokens: 5000 },
-      messages: [{ role: "user", content: "Hi" }],
-    });
-
-    await app.request(
-      "/v1/messages",
-      makeRequest(body, { Authorization: "Bearer ghu_test" })
-    );
-
-    const sent = JSON.parse(mockCreateMessages.mock.calls[0][1]);
-    expect(sent.thinking).toEqual({ type: "enabled", budget_tokens: 5000 });
-    expect(sent.output_config).toBeUndefined();
-  });
-
   // --- anthropic-beta header forwarding ---
 
   it("forwards allowed anthropic-beta values to upstream", async () => {
@@ -365,37 +283,6 @@ describe("POST /v1/messages", () => {
       "copilot-token",
       expect.any(String),
       "unknown-beta-1,unknown-beta-2"
-    );
-  });
-
-  it("strips interleaved-thinking beta for claude-opus-4.7", async () => {
-    mockGetCopilotToken.mockResolvedValue("copilot-token");
-    mockCreateMessages.mockResolvedValue(
-      new Response("{}", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const body47 = JSON.stringify({
-      model: "claude-opus-4.7",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: "Hi" }],
-    });
-
-    await app.request(
-      "/v1/messages",
-      makeRequest(body47, {
-        Authorization: "Bearer ghu_test",
-        "anthropic-beta":
-          "interleaved-thinking-2025-05-14, context-management-2025-06-27",
-      })
-    );
-
-    expect(mockCreateMessages).toHaveBeenCalledWith(
-      "copilot-token",
-      expect.any(String),
-      "context-management-2025-06-27"
     );
   });
 

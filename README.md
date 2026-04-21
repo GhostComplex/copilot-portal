@@ -32,7 +32,7 @@ Use the included `Dockerfile` with Azure Web App for Containers. The smoothest s
 1. Create a Linux Web App and an Azure Container Registry.
 2. Configure the Web App health check path as `/health`.
 3. Add the required GitHub repository secrets.
-4. Run the `Deploy Azure Web App Container` workflow manually.
+4. Push a deploy tag — `staging-YYYYMMDD.XX` triggers `deploy-staging.yml`, `release-X.Y.Z` triggers `deploy-production.yml`.
 
 Required GitHub secrets:
 
@@ -45,7 +45,7 @@ Required GitHub secrets:
 - `ACR_USERNAME`
 - `ACR_PASSWORD`
 
-The workflow builds the image from the repository root, pushes it to ACR, and updates the Web App container image.
+The workflow builds the image from the repository root, pushes it to ACR, and updates the Web App container image. See [CLAUDE.md](CLAUDE.md#deployment-azure) for tag format details.
 
 ### 3. Test It
 
@@ -96,6 +96,7 @@ All endpoints are relative to `YOUR_BASE_URL`.
 |----------|-------------|
 | `POST /v1/chat/completions` | OpenAI Chat Completions format |
 | `POST /v1/messages` | Anthropic Messages format |
+| `POST /v1/responses` | OpenAI Responses API passthrough |
 | `GET /v1/models` | List available models |
 | `GET /health` | Health check |
 
@@ -104,12 +105,30 @@ All endpoints are relative to `YOUR_BASE_URL`.
 ```
 You run CLI → Device Flow → OAuth Token (stored locally)
                                 ↓
-Request with token → Service exchanges for Copilot Token (cached ~30min)
+Request with token → Service exchanges for Copilot Token (cached until expiry)
                                 ↓
                         GitHub Copilot API
 ```
 
 **The service is stateless** — your OAuth token stays on your machine, not on the server.
+
+## Request translation (`/v1/messages`)
+
+The proxy is a transparent layer: unknown fields pass through untouched, only known-bad fields are stripped or rewritten. This keeps the proxy auto-compatible with future upstream features. Logic lives in `packages/core/src/routes/messages/translate.ts`.
+
+| Where | Field | Trigger | Action | Why |
+|---|---|---|---|---|
+| body | `max_tokens` | absent | inject `16384` | upstream requires it |
+| body | `thinking.type` | model starts with `claude-opus-4.7` and value is `enabled` | rewrite to `adaptive` | 4.7 rejects `enabled` |
+| body | `thinking.budget_tokens` | model starts with `claude-opus-4.7` and `thinking.type` is `enabled` | drop | `adaptive` mode rejects this field |
+| body | `output_config.format` | present | drop (and drop the whole `output_config` if empty) | upstream rejects Structured Outputs with 400; some SDKs auto-inject this |
+| body | `output_config.effort` | always | leave as-is | client-controlled |
+| header | `anthropic-beta: context-1m-2025-08-07` | present in list | drop from comma-separated value | upstream rejects this beta |
+| header | other `anthropic-beta` values | always | forward as-is | unknown betas pass through |
+
+### Response `model` echo quirk
+
+The upstream response body's `model` field is **not** the id we forwarded — Copilot canonicalizes it before echoing (e.g. `claude-opus-4.6` → `claude-opus-4-6`). Per the transparent proxy principle, the portal does not rewrite the echoed field.
 
 ## Security
 
@@ -123,12 +142,10 @@ Request with token → Service exchanges for Copilot Token (cached ~30min)
 ```
 copilot-portal/
 ├── packages/
-│   ├── core/        # Shared API routes and Copilot proxy logic
-│   ├── cf-workers/  # Cloudflare Workers host
+│   ├── core/         # Shared API routes, Copilot proxy, translation logic
+│   ├── cf-workers/   # Cloudflare Workers host
 │   ├── node-service/ # Node.js host for Azure/App Service
-│   └── cli/         # OAuth Device Flow CLI
-└── docs/
-    └── prd.md       # Product Requirements Document
+│   └── cli/          # OAuth Device Flow CLI
 ```
 
 ## Development
@@ -154,6 +171,7 @@ pnpm build
 | `pnpm format:check` | Check formatting across packages |
 | `pnpm typecheck` | Type check all packages |
 | `pnpm test` | Run tests for packages that expose them |
+| `pnpm test:e2e` | Run e2e tests against the upstream and proxy (requires `GITHUB_TOKEN`) |
 | `pnpm test:coverage` | Run coverage for packages that expose it |
 | `pnpm dev` | Start Node service dev server |
 | `pnpm dev:cf` | Start Cloudflare Workers dev server |
@@ -204,7 +222,6 @@ If npm rejects the publish because the version already exists, bump the version 
 - [packages/core/README.md](packages/core/README.md): shared routes, tests, and translation logic
 - [packages/cf-workers/README.md](packages/cf-workers/README.md): Cloudflare Workers runtime and deployment
 - [packages/node-service/README.md](packages/node-service/README.md): Node runtime, Docker, and Azure Web App notes
-- [docs/prd.md](docs/prd.md): product and architecture context
 
 ## License
 
