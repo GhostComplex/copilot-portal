@@ -7,6 +7,7 @@ vi.mock("../src/services/copilot", () => ({
   createChatCompletions: vi.fn(),
   createMessages: vi.fn(),
   createResponses: vi.fn(),
+  createEmbeddings: vi.fn(),
   getModels: vi.fn(),
   clearTokenCache: vi.fn(),
   isTokenValid: vi.fn(),
@@ -23,6 +24,7 @@ import {
   getCopilotToken,
   createChatCompletions,
   createResponses,
+  createEmbeddings,
   getModels,
   TokenExchangeError,
 } from "../src/services/copilot";
@@ -32,6 +34,7 @@ const mockCreateChatCompletions = createChatCompletions as ReturnType<
   typeof vi.fn
 >;
 const mockCreateResponses = createResponses as ReturnType<typeof vi.fn>;
+const mockCreateEmbeddings = createEmbeddings as ReturnType<typeof vi.fn>;
 const mockGetModels = getModels as ReturnType<typeof vi.fn>;
 
 describe("GET /health", () => {
@@ -367,6 +370,85 @@ describe("POST /v1/responses", () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toBe(chunks.join(""));
+  });
+});
+
+describe("POST /v1/embeddings", () => {
+  beforeEach(() => {
+    mockGetCopilotToken.mockReset();
+    mockCreateEmbeddings.mockReset();
+  });
+
+  it("returns 401 without auth header", async () => {
+    const res = await app.request("/v1/embeddings", {
+      method: "POST",
+      body: "{}",
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("forwards request on valid auth", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateEmbeddings.mockResolvedValue(
+      new Response(
+        JSON.stringify({ object: "list", data: [{ embedding: [0.1, 0.2] }] }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const body = JSON.stringify({
+      model: "text-embedding-3-small",
+      input: "hi",
+    });
+    const res = await app.request("/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer github-token",
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockGetCopilotToken).toHaveBeenCalledWith("github-token");
+    expect(mockCreateEmbeddings).toHaveBeenCalledWith("copilot-token", body);
+  });
+
+  it("returns error on token exchange failure", async () => {
+    mockGetCopilotToken.mockRejectedValue(
+      new TokenExchangeError("Invalid token", 401)
+    );
+
+    const res = await app.request("/v1/embeddings", {
+      method: "POST",
+      headers: { Authorization: "Bearer bad-token" },
+      body: "{}",
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("returns upstream error on non-ok response", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateEmbeddings.mockResolvedValue(
+      new Response("bad request", { status: 400 })
+    );
+
+    const res = await app.request("/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer ghu_test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: "hi",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Upstream error");
   });
 });
 
