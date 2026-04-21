@@ -106,31 +106,6 @@ async function buildCopilotHeaders(
   return headers;
 }
 
-/**
- * Filter the client's `anthropic-beta` header, removing betas that the
- * Copilot upstream rejects. Returns `undefined` if nothing remains.
- *
- * - `context-1m-2025-08-07` is rejected upstream (400 "unsupported beta").
- * - `interleaved-thinking-2025-05-14` is rejected by `claude-opus-4.7*`.
- * - All other betas are forwarded as-is.
- */
-export function filterAnthropicBeta(
-  raw: string | undefined | null,
-  model?: string
-): string | undefined {
-  if (!raw) return undefined;
-  const isOpus47 = model?.startsWith("claude-opus-4.7") ?? false;
-  const kept = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => {
-      if (s === "context-1m-2025-08-07") return false;
-      if (s === "interleaved-thinking-2025-05-14") return !isOpus47;
-      return true;
-    });
-  return kept.length > 0 ? kept.join(",") : undefined;
-}
-
 function buildGitHubHeaders(githubToken: string): Record<string, string> {
   return {
     Accept: "application/json",

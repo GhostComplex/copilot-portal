@@ -6,7 +6,6 @@ import {
   createChatCompletions,
   createMessages,
   getModels,
-  filterAnthropicBeta,
   resetVSCodeVersionCache,
   TokenExchangeError,
   HttpError,
@@ -115,60 +114,6 @@ describe("createChatCompletions", () => {
     expect(mockFetch.mock.calls[1][0]).toBe(
       "https://api.githubcopilot.com/chat/completions"
     );
-  });
-});
-
-describe("filterAnthropicBeta", () => {
-  it("returns undefined for empty input", () => {
-    expect(filterAnthropicBeta(undefined)).toBeUndefined();
-    expect(filterAnthropicBeta(null)).toBeUndefined();
-    expect(filterAnthropicBeta("")).toBeUndefined();
-  });
-
-  it("keeps supported betas", () => {
-    expect(
-      filterAnthropicBeta(
-        "context-management-2025-06-27,advanced-tool-use-2025-11-20"
-      )
-    ).toBe("context-management-2025-06-27,advanced-tool-use-2025-11-20");
-  });
-
-  it("keeps interleaved-thinking for non-Opus-4.7 models", () => {
-    expect(
-      filterAnthropicBeta(
-        "interleaved-thinking-2025-05-14",
-        "claude-sonnet-4-6"
-      )
-    ).toBe("interleaved-thinking-2025-05-14");
-  });
-
-  it("drops interleaved-thinking for Opus 4.7", () => {
-    expect(
-      filterAnthropicBeta(
-        "interleaved-thinking-2025-05-14,context-management-2025-06-27",
-        "claude-opus-4.7"
-      )
-    ).toBe("context-management-2025-06-27");
-  });
-
-  it("passes through unknown betas", () => {
-    expect(filterAnthropicBeta("some-unknown-beta")).toBe("some-unknown-beta");
-  });
-
-  it("drops context-1m beta", () => {
-    expect(filterAnthropicBeta("context-1m-2025-08-07")).toBeUndefined();
-  });
-
-  it("drops context-1m but keeps other betas", () => {
-    expect(
-      filterAnthropicBeta("context-1m-2025-08-07,context-management-2025-06-27")
-    ).toBe("context-management-2025-06-27");
-  });
-
-  it("trims whitespace around entries", () => {
-    expect(
-      filterAnthropicBeta(" context-management-2025-06-27 , some-other-beta ")
-    ).toBe("context-management-2025-06-27,some-other-beta");
   });
 });
 
