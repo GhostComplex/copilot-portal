@@ -42,4 +42,9 @@ curl http://localhost:8080/health
 
 ## Azure Web App
 
-The repository includes [.github/workflows/deploy-webapp-container.yml](../../.github/workflows/deploy-webapp-container.yml) for Azure Web App for Containers deployments.
+Deployments are triggered by tag pushes:
+
+- Staging: push a `staging-YYYYMMDD.XX` tag — runs [.github/workflows/deploy-staging.yml](../../.github/workflows/deploy-staging.yml)
+- Production: push a `release-X.Y.Z` tag — runs [.github/workflows/deploy-production.yml](../../.github/workflows/deploy-production.yml)
+
+Both workflows build the Docker image, push it to ACR, and update the Azure Web App container config.

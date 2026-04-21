@@ -34,4 +34,10 @@ Print the saved token:
 npx copilot-portal token
 ```
 
+Force re-authentication (ignore cached token):
+
+```bash
+npx copilot-portal auth --refresh
+```
+
 The saved token is stored at `~/.copilot-portal/token`.

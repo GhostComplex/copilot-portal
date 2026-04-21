@@ -32,7 +32,7 @@ Use the included `Dockerfile` with Azure Web App for Containers. The smoothest s
 1. Create a Linux Web App and an Azure Container Registry.
 2. Configure the Web App health check path as `/health`.
 3. Add the required GitHub repository secrets.
-4. Run the `Deploy Azure Web App Container` workflow manually.
+4. Push a deploy tag — `staging-YYYYMMDD.XX` triggers `deploy-staging.yml`, `release-X.Y.Z` triggers `deploy-production.yml`.
 
 Required GitHub secrets:
 
@@ -45,7 +45,7 @@ Required GitHub secrets:
 - `ACR_USERNAME`
 - `ACR_PASSWORD`
 
-The workflow builds the image from the repository root, pushes it to ACR, and updates the Web App container image.
+The workflow builds the image from the repository root, pushes it to ACR, and updates the Web App container image. See [CLAUDE.md](CLAUDE.md#deployment-azure) for tag format details.
 
 ### 3. Test It
 
