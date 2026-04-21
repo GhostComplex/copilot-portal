@@ -97,6 +97,19 @@ describe("GHC upstream: anthropic-beta + thinking support matrix", () => {
     expect(res.status).toBe(200);
   });
 
+  // --- adaptive + leftover budget_tokens: pins whether the drop in translate.ts is necessary ---
+
+  it("4.7 + adaptive + budget_tokens → rejected (drop in translate.ts is necessary)", async () => {
+    const res = await postUpstream({
+      model: "claude-opus-4.7",
+      body: {
+        thinking: { type: "adaptive", budget_tokens: 5000 },
+        output_config: { effort: "medium" },
+      },
+    });
+    expect(res.status).not.toBe(200);
+  });
+
   // --- interleaved-thinking beta: accepted on all models ---
 
   it("4.6 + interleaved-thinking (no thinking) → 200", async () => {
