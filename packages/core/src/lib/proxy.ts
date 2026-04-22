@@ -57,37 +57,56 @@ export interface ProxyOptions {
   prepareBody?: (raw: string) => string;
 }
 
-export async function proxyPassthrough(c: Context, opts: ProxyOptions) {
+export type WithCopilotTokenResult =
+  | { ok: true; copilotToken: string; requestId: string }
+  | { ok: false; response: Response };
+
+export async function withCopilotToken(
+  c: Context,
+  routeName: string,
+  errorShape: ErrorShape
+): Promise<WithCopilotTokenResult> {
   const requestId = crypto.randomUUID().slice(0, 8);
-  const { routeName, errorShape, call, prepareBody } = opts;
 
   const githubToken = extractToken(c.req.header("Authorization"));
   if (!githubToken) {
     console.warn(`[${requestId}] ${routeName} — 401 missing auth`);
-    return c.json(
-      errorShape.auth("Missing or malformed Authorization header"),
-      401
-    );
+    return {
+      ok: false,
+      response: c.json(
+        errorShape.auth("Missing or malformed Authorization header"),
+        401
+      ),
+    };
   }
 
-  let copilotToken: string;
   try {
-    copilotToken = await getCopilotToken(githubToken);
+    const copilotToken = await getCopilotToken(githubToken);
+    return { ok: true, copilotToken, requestId };
   } catch (err) {
     if (err instanceof TokenExchangeError) {
       console.error(`[${requestId}] Token exchange failed: ${err.message}`);
-      return c.json(
-        errorShape.tokenExchange(err.message),
-        err.statusCode as 401 | 403 | 500
-      );
+      return {
+        ok: false,
+        response: c.json(
+          errorShape.tokenExchange(err.message),
+          err.statusCode as 401 | 403 | 500
+        ),
+      };
     }
     throw err;
   }
+}
+
+export async function proxyPassthrough(c: Context, opts: ProxyOptions) {
+  const result = await withCopilotToken(c, opts.routeName, opts.errorShape);
+  if (!result.ok) return result.response;
+  const { copilotToken, requestId } = result;
 
   const raw = await c.req.text();
-  const body = prepareBody ? prepareBody(raw) : raw;
-  console.log(`[${requestId}] ${routeName}`);
-  const upstream = await call(copilotToken, body);
+  const body = opts.prepareBody ? opts.prepareBody(raw) : raw;
+  console.log(`[${requestId}] ${opts.routeName}`);
+  const upstream = await opts.call(copilotToken, body);
 
   if (!upstream.ok) {
     const errorText = await upstream.text();
@@ -95,7 +114,7 @@ export async function proxyPassthrough(c: Context, opts: ProxyOptions) {
       `[${requestId}] Upstream error ${upstream.status}: ${errorText}`
     );
     return c.json(
-      errorShape.upstream(errorText),
+      opts.errorShape.upstream(errorText),
       upstream.status as 400 | 401 | 403 | 500 | 502
     );
   }

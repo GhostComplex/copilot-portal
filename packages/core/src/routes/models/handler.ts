@@ -3,42 +3,16 @@
  */
 
 import type { Context } from "hono";
-import {
-  getCopilotToken,
-  getModels,
-  TokenExchangeError,
-} from "../../services/copilot";
-import { extractToken } from "../../lib/proxy";
+import { getModels } from "../../services/copilot";
+import { withCopilotToken, openaiErrorShape } from "../../lib/proxy";
 
 export async function handleModels(c: Context) {
-  // 1. Extract GitHub token
-  const githubToken = extractToken(c.req.header("Authorization"));
-  if (!githubToken) {
-    return c.json({ error: "Missing or malformed Authorization header" }, 401);
-  }
+  const result = await withCopilotToken(c, "GET /v1/models", openaiErrorShape);
+  if (!result.ok) return result.response;
 
-  // 2. Exchange for Copilot token
-  let copilotToken: string;
-  try {
-    copilotToken = await getCopilotToken(githubToken);
-  } catch (err) {
-    if (err instanceof TokenExchangeError) {
-      return c.json(
-        { error: "Token exchange failed", detail: err.message },
-        err.statusCode as 401 | 403 | 500
-      );
-    }
-    throw err;
-  }
-
-  // 3. Fetch models from Copilot API
-  const upstream = await getModels(copilotToken);
-
-  // 4. Return response
+  const upstream = await getModels(result.copilotToken);
   return new Response(upstream.body, {
     status: upstream.status,
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
   });
 }
