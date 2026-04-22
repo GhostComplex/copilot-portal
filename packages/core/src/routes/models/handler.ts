@@ -8,7 +8,7 @@ import {
   getModels,
   TokenExchangeError,
 } from "../../services/copilot";
-import { extractToken } from "../../lib/utils";
+import { extractToken } from "../../lib/proxy";
 
 export async function handleModels(c: Context) {
   // 1. Extract GitHub token
