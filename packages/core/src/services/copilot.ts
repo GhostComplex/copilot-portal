@@ -259,6 +259,64 @@ export async function createEmbeddings(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Web Search via Responses API
+// ---------------------------------------------------------------------------
+
+const SEARCH_MODEL = "gpt-5.4-mini";
+
+export interface WebSearchResult {
+  url: string;
+  title: string;
+  snippet: string;
+}
+
+export async function searchViaResponses(
+  copilotToken: string,
+  query: string
+): Promise<WebSearchResult[]> {
+  try {
+    const headers = await buildCopilotHeaders(copilotToken);
+    const resp = await fetch(`${COPILOT_API_BASE_URL}/responses`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: SEARCH_MODEL,
+        input: query,
+        tools: [{ type: "web_search" }],
+        tool_choice: "required",
+        stream: false,
+      }),
+    });
+    if (!resp.ok) return [];
+    const data = (await resp.json()) as Record<string, unknown>;
+    const output = data.output as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(output)) return [];
+
+    const results: WebSearchResult[] = [];
+    for (const item of output) {
+      if (item.type === "message") {
+        const content = item.content as
+          | Array<Record<string, unknown>>
+          | undefined;
+        if (!Array.isArray(content)) continue;
+        for (const block of content) {
+          if (block.type === "output_text" && typeof block.text === "string") {
+            results.push({
+              url: "",
+              title: "Web Search Result",
+              snippet: block.text,
+            });
+          }
+        }
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Get available models from Copilot API.
  */

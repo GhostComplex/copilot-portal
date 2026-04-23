@@ -81,6 +81,60 @@ function parseSSE(body: ReadableStream<Uint8Array>): ReadableStream<SSEEvent> {
  * @param body - Upstream SSE stream
  * @param transform - Transform function. Return array of events to emit, or null to skip.
  */
+/**
+ * Serialize a complete Anthropic Messages response into SSE event text.
+ * Used to replay a non-streaming response as an SSE stream.
+ */
+export function anthropicToSSE(response: Record<string, unknown>): string {
+  const content = response.content as
+    | Array<Record<string, unknown>>
+    | undefined;
+  const lines: string[] = [];
+
+  const emit = (event: string, data: unknown) => {
+    lines.push(`event: ${event}\ndata: ${JSON.stringify(data)}\n`);
+  };
+
+  const messageShell = { ...response };
+  delete messageShell.content;
+  emit("message_start", {
+    type: "message_start",
+    message: { ...messageShell, content: [] },
+  });
+
+  if (content) {
+    for (let i = 0; i < content.length; i++) {
+      const block = content[i];
+      emit("content_block_start", {
+        type: "content_block_start",
+        index: i,
+        content_block:
+          block.type === "text" ? { type: "text", text: "" } : block,
+      });
+
+      if (block.type === "text" && typeof block.text === "string") {
+        emit("content_block_delta", {
+          type: "content_block_delta",
+          index: i,
+          delta: { type: "text_delta", text: block.text },
+        });
+      }
+
+      emit("content_block_stop", { type: "content_block_stop", index: i });
+    }
+  }
+
+  emit("message_delta", {
+    type: "message_delta",
+    delta: { stop_reason: response.stop_reason ?? "end_turn" },
+    usage: response.usage ?? {},
+  });
+  emit("message_stop", { type: "message_stop" });
+  lines.push("data: [DONE]\n");
+
+  return lines.join("\n");
+}
+
 export async function* transformSSE(
   body: ReadableStream<Uint8Array>,
   transform: (event: string | undefined, data: string) => SSEEvent[] | null

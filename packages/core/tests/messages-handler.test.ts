@@ -14,6 +14,7 @@ vi.mock("../src/services/copilot", async (importActual) => {
     getCopilotToken: vi.fn(),
     createChatCompletions: vi.fn(),
     createMessages: vi.fn(),
+    searchViaResponses: vi.fn(),
     getModels: vi.fn(),
   };
 });
@@ -21,11 +22,13 @@ vi.mock("../src/services/copilot", async (importActual) => {
 import {
   getCopilotToken,
   createMessages,
+  searchViaResponses,
   TokenExchangeError,
 } from "../src/services/copilot";
 
 const mockGetCopilotToken = getCopilotToken as ReturnType<typeof vi.fn>;
 const mockCreateMessages = createMessages as ReturnType<typeof vi.fn>;
+const mockSearch = searchViaResponses as ReturnType<typeof vi.fn>;
 
 const validAnthropicBody = JSON.stringify({
   model: "claude-sonnet-4",
@@ -51,6 +54,7 @@ describe("POST /v1/messages", () => {
   beforeEach(() => {
     mockGetCopilotToken.mockReset();
     mockCreateMessages.mockReset();
+    mockSearch.mockReset();
   });
 
   // --- Auth ---
@@ -324,5 +328,160 @@ describe("POST /v1/messages", () => {
     expect(text).toContain("message_start");
     expect(text).toContain("content_block_delta");
     expect(text).toContain("message_stop");
+  });
+
+  // --- Server-tool interception (web search) ---
+
+  it("intercepts web_search tool and returns search results (non-streaming)", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+
+    mockCreateMessages
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "msg_1",
+            type: "message",
+            role: "assistant",
+            model: "claude-sonnet-4.6",
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_1",
+                name: "web_search",
+                input: { query: "AI news" },
+              },
+            ],
+            stop_reason: "tool_use",
+            usage: { input_tokens: 10, output_tokens: 5 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "msg_2",
+            type: "message",
+            role: "assistant",
+            model: "claude-sonnet-4.6",
+            content: [{ type: "text", text: "Here are the results." }],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 50, output_tokens: 20 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+
+    mockSearch.mockResolvedValue([
+      { url: "https://example.com", title: "AI News", snippet: "Latest AI" },
+    ]);
+
+    const body = JSON.stringify({
+      model: "claude-sonnet-4.6",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: "Search for AI news" }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+    });
+
+    const res = await app.request(
+      "/v1/messages",
+      makeRequest(body, { Authorization: "Bearer ghu_test" })
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.content[0].text).toBe("Here are the results.");
+    expect(mockSearch).toHaveBeenCalledWith("copilot-token", "AI news");
+  });
+
+  it("intercepts web_search tool and returns SSE when stream=true", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+
+    mockCreateMessages
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "msg_1",
+            type: "message",
+            role: "assistant",
+            model: "claude-sonnet-4.6",
+            content: [
+              {
+                type: "tool_use",
+                id: "tu_1",
+                name: "web_search",
+                input: { query: "test" },
+              },
+            ],
+            stop_reason: "tool_use",
+            usage: { input_tokens: 10, output_tokens: 5 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "msg_2",
+            type: "message",
+            role: "assistant",
+            model: "claude-sonnet-4.6",
+            content: [{ type: "text", text: "Results here." }],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 50, output_tokens: 20 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+
+    mockSearch.mockResolvedValue([]);
+
+    const body = JSON.stringify({
+      model: "claude-sonnet-4.6",
+      max_tokens: 1024,
+      stream: true,
+      messages: [{ role: "user", content: "search" }],
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+    });
+
+    const res = await app.request(
+      "/v1/messages",
+      makeRequest(body, { Authorization: "Bearer ghu_test" })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+
+    const text = await res.text();
+    expect(text).toContain("message_start");
+    expect(text).toContain("content_block_start");
+    expect(text).toContain("text_delta");
+    expect(text).toContain("message_stop");
+    expect(text).toContain("[DONE]");
+  });
+
+  it("passes through without interception when no server tools", async () => {
+    mockGetCopilotToken.mockResolvedValue("copilot-token");
+    mockCreateMessages.mockResolvedValue(
+      new Response(
+        JSON.stringify({ content: [{ type: "text", text: "ok" }] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+
+    const body = JSON.stringify({
+      model: "claude-sonnet-4.6",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: "hi" }],
+      tools: [{ type: "function", name: "f1", input_schema: {} }],
+    });
+
+    const res = await app.request(
+      "/v1/messages",
+      makeRequest(body, { Authorization: "Bearer ghu_test" })
+    );
+    expect(res.status).toBe(200);
+    expect(mockSearch).not.toHaveBeenCalled();
   });
 });
