@@ -45,6 +45,12 @@ export function transformRequestBody(raw: string): TransformResult {
     changed = true;
   }
 
+  // Strip `context_management` — upstream rejects it with 400 "Extra inputs".
+  if ("context_management" in out) {
+    delete out.context_management;
+    changed = true;
+  }
+
   // Strip `output_config.format` (Anthropic Structured Outputs).
   // Upstream rejects this field with 400 regardless of beta header. Some SDKs
   // (e.g. claw-code's) auto-inject it, leaving the application no way to opt out.

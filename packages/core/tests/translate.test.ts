@@ -108,6 +108,16 @@ describe("transformRequestBody", () => {
     expect(sent.thinking).toEqual({ type: "adaptive" });
   });
 
+  it("strips context_management from body", () => {
+    const raw = JSON.stringify({
+      model: "claude-sonnet-4",
+      max_tokens: 1024,
+      context_management: { type: "auto" },
+    });
+    const sent = JSON.parse(transformRequestBody(raw).body);
+    expect("context_management" in sent).toBe(false);
+  });
+
   it("strips output_config.format but keeps effort", () => {
     const raw = JSON.stringify({
       model: "claude-opus-4.7",
