@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
-  rewriteRequestBody,
+  transformRequestBody,
   filterAnthropicBeta,
 } from "../src/routes/messages/translate";
 
-describe("rewriteRequestBody", () => {
+describe("transformRequestBody", () => {
   it("returns raw body and undefined model on invalid JSON", () => {
     const raw = "not json";
-    const result = rewriteRequestBody(raw);
+    const result = transformRequestBody(raw);
     expect(result.body).toBe(raw);
     expect(result.model).toBeUndefined();
   });
@@ -17,15 +17,16 @@ describe("rewriteRequestBody", () => {
       model: "claude-sonnet-4",
       max_tokens: 1024,
     });
-    expect(rewriteRequestBody(raw).model).toBe("claude-sonnet-4");
+    expect(transformRequestBody(raw).model).toBe("claude-sonnet-4");
   });
 
   it("returns undefined model when field is missing or non-string", () => {
     expect(
-      rewriteRequestBody(JSON.stringify({ max_tokens: 1024 })).model
+      transformRequestBody(JSON.stringify({ max_tokens: 1024 })).model
     ).toBeUndefined();
     expect(
-      rewriteRequestBody(JSON.stringify({ model: 42, max_tokens: 1024 })).model
+      transformRequestBody(JSON.stringify({ model: 42, max_tokens: 1024 }))
+        .model
     ).toBeUndefined();
   });
 
@@ -35,7 +36,7 @@ describe("rewriteRequestBody", () => {
       max_tokens: 1024,
       messages: [{ role: "user", content: "hi" }],
     });
-    expect(rewriteRequestBody(raw).body).toBe(raw);
+    expect(transformRequestBody(raw).body).toBe(raw);
   });
 
   it("injects default max_tokens when missing", () => {
@@ -43,7 +44,7 @@ describe("rewriteRequestBody", () => {
       model: "claude-sonnet-4",
       messages: [{ role: "user", content: "hi" }],
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.max_tokens).toBe(16384);
   });
 
@@ -52,7 +53,7 @@ describe("rewriteRequestBody", () => {
       model: "claude-sonnet-4",
       max_tokens: 42,
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.max_tokens).toBe(42);
   });
 
@@ -62,7 +63,7 @@ describe("rewriteRequestBody", () => {
       max_tokens: 16384,
       thinking: { type: "enabled", budget_tokens: 5000 },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.thinking).toEqual({ type: "adaptive" });
   });
 
@@ -72,7 +73,7 @@ describe("rewriteRequestBody", () => {
       max_tokens: 16384,
       thinking: { type: "enabled", budget_tokens: 5000 },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.output_config).toBeUndefined();
   });
 
@@ -83,7 +84,7 @@ describe("rewriteRequestBody", () => {
       thinking: { type: "enabled", budget_tokens: 5000 },
       output_config: { effort: "high" },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.output_config).toEqual({ effort: "high" });
   });
 
@@ -93,7 +94,7 @@ describe("rewriteRequestBody", () => {
       max_tokens: 16384,
       thinking: { type: "enabled", budget_tokens: 5000 },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.thinking).toEqual({ type: "enabled", budget_tokens: 5000 });
   });
 
@@ -103,7 +104,7 @@ describe("rewriteRequestBody", () => {
       max_tokens: 16384,
       thinking: { type: "adaptive" },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.thinking).toEqual({ type: "adaptive" });
   });
 
@@ -116,7 +117,7 @@ describe("rewriteRequestBody", () => {
         format: { type: "json_schema", schema: { type: "object" } },
       },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect(sent.output_config).toEqual({ effort: "high" });
   });
 
@@ -128,7 +129,7 @@ describe("rewriteRequestBody", () => {
         format: { type: "json_schema", schema: { type: "object" } },
       },
     });
-    const sent = JSON.parse(rewriteRequestBody(raw).body);
+    const sent = JSON.parse(transformRequestBody(raw).body);
     expect("output_config" in sent).toBe(false);
   });
 });

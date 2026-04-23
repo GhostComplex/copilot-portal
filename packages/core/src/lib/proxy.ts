@@ -145,7 +145,7 @@ export async function withCopilotToken(
 
 type HeaderTransform = (val: string | undefined) => string | undefined;
 
-type BodyRewrite = (raw: string) => { body: string } | string;
+type BodyTransform = (raw: string) => { body: string } | string;
 
 type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
 
@@ -159,7 +159,7 @@ interface PipelineConfig {
   routeName: string;
   shape: ErrorShape;
   headerSteps: { name: string; transform: HeaderTransform }[];
-  bodyRewrite: BodyRewrite | null;
+  bodyTransform: BodyTransform | null;
   interceptStep: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
     handle: InterceptHandler;
@@ -175,7 +175,7 @@ class Pipeline {
       routeName,
       shape: openaiErrorShape,
       headerSteps: [],
-      bodyRewrite: null,
+      bodyTransform: null,
       interceptStep: null,
       needsBody: false,
     };
@@ -191,9 +191,9 @@ class Pipeline {
     return this;
   }
 
-  body(rewrite?: BodyRewrite): this {
+  body(transform?: BodyTransform): this {
     this.config.needsBody = true;
-    if (rewrite) this.config.bodyRewrite = rewrite;
+    if (transform) this.config.bodyTransform = transform;
     return this;
   }
 
@@ -223,8 +223,8 @@ class Pipeline {
 
       if (cfg.needsBody) {
         const raw = await c.req.text();
-        if (cfg.bodyRewrite) {
-          const result = cfg.bodyRewrite(raw);
+        if (cfg.bodyTransform) {
+          const result = cfg.bodyTransform(raw);
           body = typeof result === "string" ? result : result.body;
         } else {
           body = raw;
