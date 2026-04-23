@@ -455,7 +455,7 @@ describe("POST /v1/messages", () => {
     expect(text).toContain("content_block_start");
     expect(text).toContain("text_delta");
     expect(text).toContain("message_stop");
-    expect(text).toContain("[DONE]");
+    expect(text).not.toContain("[DONE]");
   });
 
   it("passes through without interception when no server tools", async () => {

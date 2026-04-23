@@ -130,7 +130,6 @@ export function anthropicToSSE(response: Record<string, unknown>): string {
     usage: response.usage ?? {},
   });
   emit("message_stop", { type: "message_stop" });
-  lines.push("data: [DONE]\n");
 
   return lines.join("\n");
 }
