@@ -157,10 +157,10 @@ type SendFn = (
 
 interface PipelineConfig {
   routeName: string;
-  shape: ErrorShape;
-  headerTransforms: { name: string; transform: HeaderTransform }[];
+  errorShape: ErrorShape;
+  headerTransform: { name: string; transform: HeaderTransform }[];
   bodyTransform: BodyTransform | null;
-  interceptStep: {
+  intercept: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
     handle: InterceptHandler;
   } | null;
@@ -173,21 +173,21 @@ class Pipeline {
   constructor(routeName: string) {
     this.config = {
       routeName,
-      shape: openaiErrorShape,
-      headerTransforms: [],
+      errorShape: openaiErrorShape,
+      headerTransform: [],
       bodyTransform: null,
-      interceptStep: null,
+      intercept: null,
       needsBody: false,
     };
   }
 
-  errorShape(shape: ErrorShape): this {
-    this.config.shape = shape;
+  errorShape(errorShape: ErrorShape): this {
+    this.config.errorShape = errorShape;
     return this;
   }
 
   header(name: string, transform: HeaderTransform): this {
-    this.config.headerTransforms.push({ name, transform });
+    this.config.headerTransform.push({ name, transform });
     return this;
   }
 
@@ -201,7 +201,7 @@ class Pipeline {
     detect: (parsed: Record<string, unknown> | null) => boolean,
     handle: InterceptHandler
   ): this {
-    this.config.interceptStep = { detect, handle };
+    this.config.intercept = { detect, handle };
     return this;
   }
 
@@ -209,12 +209,12 @@ class Pipeline {
     const cfg = { ...this.config };
 
     return async (c: Context) => {
-      const auth = await withCopilotToken(c, cfg.routeName, cfg.shape);
+      const auth = await withCopilotToken(c, cfg.routeName, cfg.errorShape);
       if (!auth.ok) return auth.response;
       const { copilotToken, requestId } = auth;
 
       const headers: Record<string, string | undefined> = {};
-      for (const { name, transform } of cfg.headerTransforms) {
+      for (const { name, transform } of cfg.headerTransform) {
         headers[name] = transform(c.req.header(name));
       }
 
@@ -245,15 +245,15 @@ class Pipeline {
         headers,
       };
 
-      if (cfg.interceptStep?.detect(parsed)) {
-        return cfg.interceptStep.handle(ctx);
+      if (cfg.intercept?.detect(parsed)) {
+        return cfg.intercept.handle(ctx);
       }
 
       console.log(`[${requestId}] ${cfg.routeName}`);
 
-      const extraArgs = cfg.headerTransforms.map(({ name }) => headers[name]);
+      const extraArgs = cfg.headerTransform.map(({ name }) => headers[name]);
       const upstream = await call(copilotToken, body, ...extraArgs);
-      return forwardUpstream(c, upstream, cfg.shape, requestId);
+      return forwardUpstream(c, upstream, cfg.errorShape, requestId);
     };
   }
 }
