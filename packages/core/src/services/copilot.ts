@@ -308,6 +308,10 @@ export async function searchViaResponses(
         }
       }
     }
+    const sourcesBlock =
+      urls.length > 0
+        ? `\n\nSources:\n${urls.map((u) => `- ${u}`).join("\n")}`
+        : "";
 
     // Extract synthesized text from message output
     const results: WebSearchResult[] = [];
@@ -320,9 +324,9 @@ export async function searchViaResponses(
         for (const block of content) {
           if (block.type === "output_text" && typeof block.text === "string") {
             results.push({
-              url: urls.shift() ?? "",
+              url: "",
               title: "Web Search Result",
-              snippet: block.text,
+              snippet: block.text + sourcesBlock,
             });
           }
         }
