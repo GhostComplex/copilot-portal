@@ -222,6 +222,175 @@ describe("withWebSearch", () => {
     expect(mockCreateMessages).toHaveBeenCalledTimes(2);
   });
 
+  it("strips tool_use from final response when model keeps searching", async () => {
+    // Loop: model requests web_search
+    mockCreateMessages
+      .mockResolvedValueOnce(
+        makeUpstreamResponse(
+          [
+            {
+              type: "tool_use",
+              id: "toolu_abc123",
+              name: "web_search",
+              input: { query: "test" },
+            },
+          ],
+          "tool_use"
+        )
+      )
+      // Final call: model still wants to search
+      .mockResolvedValueOnce(
+        makeUpstreamResponse(
+          [
+            { type: "text", text: "Let me search more" },
+            {
+              type: "tool_use",
+              id: "toolu_xyz",
+              name: "web_search",
+              input: { query: "more" },
+            },
+          ],
+          "tool_use"
+        )
+      );
+    mockSearch.mockResolvedValue([
+      { url: "https://example.com", title: "Result", snippet: "text" },
+    ]);
+
+    const result = await withWebSearch(
+      "tok",
+      {
+        model: "claude-sonnet-4.6",
+        max_tokens: 1024,
+        tools: [{ type: "server", name: "web_search" }],
+        messages: [{ role: "user", content: "search" }],
+      },
+      undefined
+    );
+
+    expect(result.stop_reason).toBe("end_turn");
+    expect(result.content).toEqual([
+      { type: "text", text: "Let me search more" },
+    ]);
+  });
+
+  it("returns fallback text when final response has only tool_use", async () => {
+    mockCreateMessages
+      .mockResolvedValueOnce(
+        makeUpstreamResponse(
+          [
+            {
+              type: "tool_use",
+              id: "toolu_abc123",
+              name: "web_search",
+              input: { query: "test" },
+            },
+          ],
+          "tool_use"
+        )
+      )
+      .mockResolvedValueOnce(
+        makeUpstreamResponse(
+          [
+            {
+              type: "tool_use",
+              id: "toolu_xyz",
+              name: "web_search",
+              input: { query: "more" },
+            },
+          ],
+          "tool_use"
+        )
+      );
+    mockSearch.mockResolvedValue([]);
+
+    const result = await withWebSearch(
+      "tok",
+      {
+        model: "claude-sonnet-4.6",
+        max_tokens: 1024,
+        tools: [{ type: "server", name: "web_search" }],
+        messages: [{ role: "user", content: "search" }],
+      },
+      undefined
+    );
+
+    expect(result.stop_reason).toBe("end_turn");
+    expect(result.content[0].text).toBe(
+      "I was unable to complete the web search."
+    );
+  });
+
+  it("throws on final call upstream error", async () => {
+    mockCreateMessages
+      .mockResolvedValueOnce(
+        makeUpstreamResponse(
+          [
+            {
+              type: "tool_use",
+              id: "toolu_abc123",
+              name: "web_search",
+              input: { query: "test" },
+            },
+          ],
+          "tool_use"
+        )
+      )
+      .mockResolvedValueOnce(new Response("server error", { status: 500 }));
+    mockSearch.mockResolvedValue([]);
+
+    await expect(
+      withWebSearch(
+        "tok",
+        {
+          model: "claude-sonnet-4.6",
+          max_tokens: 1024,
+          tools: [{ type: "server", name: "web_search" }],
+          messages: [{ role: "user", content: "search" }],
+        },
+        undefined
+      )
+    ).rejects.toThrow("Upstream error 500");
+  });
+
+  it("keeps other tools when removing web_search for final call", async () => {
+    mockCreateMessages
+      .mockResolvedValueOnce(
+        makeUpstreamResponse(
+          [
+            {
+              type: "tool_use",
+              id: "toolu_abc123",
+              name: "web_search",
+              input: { query: "test" },
+            },
+          ],
+          "tool_use"
+        )
+      )
+      .mockResolvedValueOnce(
+        makeUpstreamResponse([{ type: "text", text: "done" }])
+      );
+    mockSearch.mockResolvedValue([]);
+
+    await withWebSearch(
+      "tok",
+      {
+        model: "claude-sonnet-4.6",
+        max_tokens: 1024,
+        tools: [
+          { type: "server", name: "web_search" },
+          { name: "other_tool", input_schema: {} },
+        ],
+        messages: [{ role: "user", content: "search" }],
+      },
+      undefined
+    );
+
+    const finalCall = JSON.parse(mockCreateMessages.mock.calls[1][1]);
+    expect(finalCall.tools).toEqual([{ name: "other_tool", input_schema: {} }]);
+  });
+
   it("throws on upstream error", async () => {
     mockCreateMessages.mockResolvedValue(
       new Response("bad request", { status: 400 })
