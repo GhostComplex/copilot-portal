@@ -1,6 +1,6 @@
 /**
  * Shared proxy primitives: auth-header parsing, error-shape adapters,
- * and the passthrough pipeline used by /v1/* handlers.
+ * and the pipeline builder used by /v1/* handlers.
  */
 
 import type { Context } from "hono";
@@ -50,12 +50,53 @@ export const anthropicErrorShape: ErrorShape = {
   }),
 };
 
-export interface ProxyOptions {
-  routeName: string;
-  errorShape: ErrorShape;
-  call: (copilotToken: string, body: string) => Promise<Response>;
-  prepareBody?: (raw: string) => string;
+// ---------------------------------------------------------------------------
+// Pipeline context — flows through each step
+// ---------------------------------------------------------------------------
+
+export interface PipelineContext {
+  c: Context;
+  copilotToken: string;
+  requestId: string;
+  body: string;
+  parsed: Record<string, unknown> | null;
+  headers: Record<string, string | undefined>;
 }
+
+// ---------------------------------------------------------------------------
+// Response forwarding
+// ---------------------------------------------------------------------------
+
+export async function forwardUpstream(
+  c: Context,
+  upstream: Response,
+  errorShape: ErrorShape,
+  requestId: string
+) {
+  if (!upstream.ok) {
+    const errorText = await upstream.text();
+    console.error(
+      `[${requestId}] Upstream error ${upstream.status}: ${errorText}`
+    );
+    return c.json(
+      errorShape.upstream(errorText),
+      upstream.status as 400 | 401 | 403 | 500 | 502
+    );
+  }
+
+  const headers = new Headers();
+  const ct = upstream.headers.get("Content-Type");
+  if (ct) headers.set("Content-Type", ct);
+  if (ct?.includes("text/event-stream")) {
+    headers.set("Cache-Control", "no-cache");
+    headers.set("Connection", "keep-alive");
+  }
+  return new Response(upstream.body, { status: upstream.status, headers });
+}
+
+// ---------------------------------------------------------------------------
+// Auth helper
+// ---------------------------------------------------------------------------
 
 export type WithCopilotTokenResult =
   | { ok: true; copilotToken: string; requestId: string }
@@ -98,33 +139,125 @@ export async function withCopilotToken(
   }
 }
 
-export async function proxyPassthrough(c: Context, opts: ProxyOptions) {
-  const result = await withCopilotToken(c, opts.routeName, opts.errorShape);
-  if (!result.ok) return result.response;
-  const { copilotToken, requestId } = result;
+// ---------------------------------------------------------------------------
+// Pipeline builder
+// ---------------------------------------------------------------------------
 
-  const raw = await c.req.text();
-  const body = opts.prepareBody ? opts.prepareBody(raw) : raw;
-  console.log(`[${requestId}] ${opts.routeName}`);
-  const upstream = await opts.call(copilotToken, body);
+type HeaderTransform = (val: string | undefined) => string | undefined;
 
-  if (!upstream.ok) {
-    const errorText = await upstream.text();
-    console.error(
-      `[${requestId}] Upstream error ${upstream.status}: ${errorText}`
-    );
-    return c.json(
-      opts.errorShape.upstream(errorText),
-      upstream.status as 400 | 401 | 403 | 500 | 502
-    );
+type BodyTransform = (raw: string) => { body: string } | string;
+
+type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
+
+type SendFn = (
+  copilotToken: string,
+  body: string,
+  ...extra: (string | undefined)[]
+) => Promise<Response>;
+
+interface PipelineConfig {
+  routeName: string;
+  errorShape: ErrorShape;
+  headerTransform: { name: string; transform: HeaderTransform }[];
+  bodyTransform: BodyTransform | null;
+  intercept: {
+    detect: (parsed: Record<string, unknown> | null) => boolean;
+    handle: InterceptHandler;
+  } | null;
+  needsBody: boolean;
+}
+
+class Pipeline {
+  private config: PipelineConfig;
+
+  constructor(routeName: string) {
+    this.config = {
+      routeName,
+      errorShape: openaiErrorShape,
+      headerTransform: [],
+      bodyTransform: null,
+      intercept: null,
+      needsBody: false,
+    };
   }
 
-  const headers = new Headers();
-  const ct = upstream.headers.get("Content-Type");
-  if (ct) headers.set("Content-Type", ct);
-  if (ct?.includes("text/event-stream")) {
-    headers.set("Cache-Control", "no-cache");
-    headers.set("Connection", "keep-alive");
+  errorShape(errorShape: ErrorShape): this {
+    this.config.errorShape = errorShape;
+    return this;
   }
-  return new Response(upstream.body, { status: upstream.status, headers });
+
+  header(name: string, transform: HeaderTransform): this {
+    this.config.headerTransform.push({ name, transform });
+    return this;
+  }
+
+  body(transform?: BodyTransform): this {
+    this.config.needsBody = true;
+    if (transform) this.config.bodyTransform = transform;
+    return this;
+  }
+
+  intercept(
+    detect: (parsed: Record<string, unknown> | null) => boolean,
+    handle: InterceptHandler
+  ): this {
+    this.config.intercept = { detect, handle };
+    return this;
+  }
+
+  send(call: SendFn): (c: Context) => Promise<Response> {
+    const cfg = { ...this.config };
+
+    return async (c: Context) => {
+      const auth = await withCopilotToken(c, cfg.routeName, cfg.errorShape);
+      if (!auth.ok) return auth.response;
+      const { copilotToken, requestId } = auth;
+
+      const headers: Record<string, string | undefined> = {};
+      for (const { name, transform } of cfg.headerTransform) {
+        headers[name] = transform(c.req.header(name));
+      }
+
+      let body = "";
+      let parsed: Record<string, unknown> | null = null;
+
+      if (cfg.needsBody) {
+        const raw = await c.req.text();
+        if (cfg.bodyTransform) {
+          const result = cfg.bodyTransform(raw);
+          body = typeof result === "string" ? result : result.body;
+        } else {
+          body = raw;
+        }
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          // invalid JSON — let upstream handle the error
+        }
+      }
+
+      const ctx: PipelineContext = {
+        c,
+        copilotToken,
+        requestId,
+        body,
+        parsed,
+        headers,
+      };
+
+      if (cfg.intercept?.detect(parsed)) {
+        return cfg.intercept.handle(ctx);
+      }
+
+      console.log(`[${requestId}] ${cfg.routeName}`);
+
+      const extraArgs = cfg.headerTransform.map(({ name }) => headers[name]);
+      const upstream = await call(copilotToken, body, ...extraArgs);
+      return forwardUpstream(c, upstream, cfg.errorShape, requestId);
+    };
+  }
+}
+
+export function pipeline(routeName: string): Pipeline {
+  return new Pipeline(routeName);
 }

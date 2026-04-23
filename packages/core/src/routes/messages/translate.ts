@@ -2,18 +2,18 @@
  * Pure Anthropic→Copilot translation for POST /v1/messages.
  *
  * Both helpers normalize an inbound Anthropic-format request into the shape
- * the Copilot upstream expects: `rewriteRequestBody` for the JSON body,
+ * the Copilot upstream expects: `transformRequestBody` for the JSON body,
  * `filterAnthropicBeta` for the `anthropic-beta` header.
  */
 
 const DEFAULT_MAX_TOKENS = 16384;
 
-export interface RewriteResult {
+export interface TransformResult {
   body: string;
   model: string | undefined;
 }
 
-export function rewriteRequestBody(raw: string): RewriteResult {
+export function transformRequestBody(raw: string): TransformResult {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw);
@@ -42,6 +42,12 @@ export function rewriteRequestBody(raw: string): RewriteResult {
     delete next.budget_tokens;
     next.type = "adaptive";
     out.thinking = next;
+    changed = true;
+  }
+
+  // Strip `context_management` — upstream rejects it with 400 "Extra inputs".
+  if ("context_management" in out) {
+    delete out.context_management;
     changed = true;
   }
 

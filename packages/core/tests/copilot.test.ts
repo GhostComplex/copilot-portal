@@ -7,6 +7,7 @@ import {
   createMessages,
   getModels,
   resetVSCodeVersionCache,
+  searchViaResponses,
   TokenExchangeError,
   HttpError,
   type GetCopilotTokenResponse,
@@ -258,5 +259,81 @@ describe("Error classes", () => {
     expect(error.statusCode).toBe(401);
     expect(error.name).toBe("TokenExchangeError");
     expect(error).toBeInstanceOf(HttpError);
+  });
+});
+
+describe("searchViaResponses", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    resetVSCodeVersionCache();
+    // First call fetches vscode version
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify(["1.100.0"]), { status: 200 })
+    );
+  });
+
+  it("extracts text from message output items", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          output: [
+            { type: "reasoning", id: "r1", summary: [] },
+            {
+              type: "web_search_call",
+              id: "ws1",
+              action: {},
+              status: "completed",
+            },
+            {
+              type: "message",
+              id: "m1",
+              role: "assistant",
+              content: [
+                { type: "output_text", text: "Search result text here" },
+              ],
+            },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+
+    const results = await searchViaResponses("tok", "test query");
+    expect(results).toHaveLength(1);
+    expect(results[0].snippet).toBe("Search result text here");
+    expect(results[0].title).toBe("Web Search Result");
+  });
+
+  it("returns empty array on non-ok response", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("error", { status: 500 }));
+    const results = await searchViaResponses("tok", "test");
+    expect(results).toEqual([]);
+  });
+
+  it("returns empty array when output is not an array", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ output: null }), { status: 200 })
+    );
+    const results = await searchViaResponses("tok", "test");
+    expect(results).toEqual([]);
+  });
+
+  it("returns empty array on fetch error", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("network error"));
+    const results = await searchViaResponses("tok", "test");
+    expect(results).toEqual([]);
+  });
+
+  it("skips message items with non-array content", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          output: [{ type: "message", id: "m1", content: "not an array" }],
+        }),
+        { status: 200 }
+      )
+    );
+    const results = await searchViaResponses("tok", "test");
+    expect(results).toEqual([]);
   });
 });

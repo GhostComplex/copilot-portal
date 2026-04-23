@@ -259,6 +259,88 @@ export async function createEmbeddings(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Web Search via Responses API
+// ---------------------------------------------------------------------------
+
+const SEARCH_MODEL = "gpt-5.4-mini";
+
+export interface WebSearchResult {
+  url: string;
+  title: string;
+  snippet: string;
+}
+
+export async function searchViaResponses(
+  copilotToken: string,
+  query: string
+): Promise<WebSearchResult[]> {
+  try {
+    const headers = await buildCopilotHeaders(copilotToken);
+    const resp = await fetch(`${COPILOT_API_BASE_URL}/responses`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: SEARCH_MODEL,
+        input: query,
+        tools: [{ type: "web_search" }],
+        tool_choice: "required",
+        stream: false,
+      }),
+    });
+    if (!resp.ok) {
+      console.error(
+        `[web-search] searchViaResponses failed: ${resp.status} ${await resp.text().catch(() => "")}`
+      );
+      return [];
+    }
+    const data = (await resp.json()) as Record<string, unknown>;
+    const output = data.output as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(output)) return [];
+
+    // Extract URLs from web_search_call open_page actions
+    const urls: string[] = [];
+    for (const item of output) {
+      if (item.type === "web_search_call") {
+        const action = item.action as Record<string, unknown> | undefined;
+        if (action?.type === "open_page" && typeof action.url === "string") {
+          urls.push(action.url);
+        }
+      }
+    }
+    const sourcesBlock =
+      urls.length > 0
+        ? `\n\nSources:\n${urls.map((u) => `- ${u}`).join("\n")}`
+        : "";
+
+    // Extract synthesized text from message output
+    const results: WebSearchResult[] = [];
+    for (const item of output) {
+      if (item.type === "message") {
+        const content = item.content as
+          | Array<Record<string, unknown>>
+          | undefined;
+        if (!Array.isArray(content)) continue;
+        for (const block of content) {
+          if (block.type === "output_text" && typeof block.text === "string") {
+            results.push({
+              url: "",
+              title: "Web Search Result",
+              snippet: block.text + sourcesBlock,
+            });
+          }
+        }
+      }
+    }
+    return results;
+  } catch (err) {
+    console.error(
+      `[web-search] searchViaResponses error: ${err instanceof Error ? err.message : err}`
+    );
+    return [];
+  }
+}
+
 /**
  * Get available models from Copilot API.
  */
