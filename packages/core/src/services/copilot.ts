@@ -288,11 +288,28 @@ export async function searchViaResponses(
         stream: false,
       }),
     });
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      console.error(
+        `[web-search] searchViaResponses failed: ${resp.status} ${await resp.text().catch(() => "")}`
+      );
+      return [];
+    }
     const data = (await resp.json()) as Record<string, unknown>;
     const output = data.output as Array<Record<string, unknown>> | undefined;
     if (!Array.isArray(output)) return [];
 
+    // Extract URLs from web_search_call open_page actions
+    const urls: string[] = [];
+    for (const item of output) {
+      if (item.type === "web_search_call") {
+        const action = item.action as Record<string, unknown> | undefined;
+        if (action?.type === "open_page" && typeof action.url === "string") {
+          urls.push(action.url);
+        }
+      }
+    }
+
+    // Extract synthesized text from message output
     const results: WebSearchResult[] = [];
     for (const item of output) {
       if (item.type === "message") {
@@ -303,7 +320,7 @@ export async function searchViaResponses(
         for (const block of content) {
           if (block.type === "output_text" && typeof block.text === "string") {
             results.push({
-              url: "",
+              url: urls.shift() ?? "",
               title: "Web Search Result",
               snippet: block.text,
             });
@@ -312,7 +329,10 @@ export async function searchViaResponses(
       }
     }
     return results;
-  } catch {
+  } catch (err) {
+    console.error(
+      `[web-search] searchViaResponses error: ${err instanceof Error ? err.message : err}`
+    );
     return [];
   }
 }
