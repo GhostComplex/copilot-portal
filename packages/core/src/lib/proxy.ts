@@ -158,7 +158,7 @@ type SendFn = (
 interface PipelineConfig {
   routeName: string;
   shape: ErrorShape;
-  headerSteps: { name: string; transform: HeaderTransform }[];
+  headerTransforms: { name: string; transform: HeaderTransform }[];
   bodyTransform: BodyTransform | null;
   interceptStep: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
@@ -174,7 +174,7 @@ class Pipeline {
     this.config = {
       routeName,
       shape: openaiErrorShape,
-      headerSteps: [],
+      headerTransforms: [],
       bodyTransform: null,
       interceptStep: null,
       needsBody: false,
@@ -187,7 +187,7 @@ class Pipeline {
   }
 
   header(name: string, transform: HeaderTransform): this {
-    this.config.headerSteps.push({ name, transform });
+    this.config.headerTransforms.push({ name, transform });
     return this;
   }
 
@@ -214,7 +214,7 @@ class Pipeline {
       const { copilotToken, requestId } = auth;
 
       const headers: Record<string, string | undefined> = {};
-      for (const { name, transform } of cfg.headerSteps) {
+      for (const { name, transform } of cfg.headerTransforms) {
         headers[name] = transform(c.req.header(name));
       }
 
@@ -251,7 +251,7 @@ class Pipeline {
 
       console.log(`[${requestId}] ${cfg.routeName}`);
 
-      const extraArgs = cfg.headerSteps.map(({ name }) => headers[name]);
+      const extraArgs = cfg.headerTransforms.map(({ name }) => headers[name]);
       const upstream = await call(copilotToken, body, ...extraArgs);
       return forwardUpstream(c, upstream, cfg.shape, requestId);
     };
