@@ -140,7 +140,9 @@ describe("createMessages", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ["1.100.0"] })
       .mockResolvedValueOnce({ ok: true });
 
-    await createMessages("tok", "{}", "context-management-2025-06-27");
+    await createMessages("tok", "{}", {
+      "anthropic-beta": "context-management-2025-06-27",
+    });
     const init = mockFetch.mock.calls[1][1];
     expect(init.headers["anthropic-beta"]).toBe(
       "context-management-2025-06-27"

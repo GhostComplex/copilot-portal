@@ -126,3 +126,19 @@ export function rewriteContext1m(input: {
 
   return { headers, body };
 }
+
+/**
+ * Pipeline `.translate(...)` entry point: cross-cutting 1M-context handling
+ * (see `rewriteContext1m`) followed by body normalization (see
+ * `transformRequestBody`). Order matters — the 1M rewrite mutates `model`,
+ * which downstream body rewrites may key off.
+ */
+export function translateMessages(input: {
+  headers: Record<string, string | undefined>;
+  body: string;
+}): { headers: Record<string, string | undefined>; body: string } {
+  const ctx1m = rewriteContext1m(input);
+  const result = transformRequestBody(ctx1m.body);
+  const body = typeof result === "string" ? result : result.body;
+  return { headers: ctx1m.headers, body };
+}

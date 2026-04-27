@@ -143,14 +143,7 @@ export async function withCopilotToken(
 // Pipeline builder
 // ---------------------------------------------------------------------------
 
-type HeaderTransform = (val: string | undefined) => string | undefined;
-
-type BodyTransform = (raw: string) => { body: string } | string;
-
-// Cross-cutting transform for concerns that span both headers and body
-// (e.g. 1M-context handling, where a beta header decides a model rewrite).
-// Runs before per-header / per-body transforms so those stay pure.
-type RequestTransform = (input: {
+type Translate = (input: {
   headers: Record<string, string | undefined>;
   body: string;
 }) => { headers: Record<string, string | undefined>; body: string };
@@ -160,15 +153,13 @@ type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
 type SendFn = (
   copilotToken: string,
   body: string,
-  ...extra: (string | undefined)[]
+  headers: Record<string, string | undefined>
 ) => Promise<Response>;
 
 interface PipelineConfig {
   routeName: string;
   errorShape: ErrorShape;
-  headerTransform: { name: string; transform: HeaderTransform }[];
-  bodyTransform: BodyTransform | null;
-  requestTransform: RequestTransform | null;
+  translate: Translate | null;
   intercept: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
     handle: InterceptHandler;
@@ -183,9 +174,7 @@ class Pipeline {
     this.config = {
       routeName,
       errorShape: openaiErrorShape,
-      headerTransform: [],
-      bodyTransform: null,
-      requestTransform: null,
+      translate: null,
       intercept: null,
       needsBody: false,
     };
@@ -196,23 +185,14 @@ class Pipeline {
     return this;
   }
 
-  header(name: string, transform?: HeaderTransform): this {
-    this.config.headerTransform.push({
-      name,
-      transform: transform ?? ((v) => v),
-    });
-    return this;
-  }
-
-  body(transform?: BodyTransform): this {
+  /**
+   * Read the request body and optionally rewrite (headers, body) before
+   * forwarding upstream. Pair with `intercept` for routes that may instead
+   * short-circuit and handle the request locally.
+   */
+  translate(fn?: Translate): this {
     this.config.needsBody = true;
-    if (transform) this.config.bodyTransform = transform;
-    return this;
-  }
-
-  requestTransform(transform: RequestTransform): this {
-    this.config.requestTransform = transform;
-    this.config.needsBody = true;
+    if (fn) this.config.translate = fn;
     return this;
   }
 
@@ -233,36 +213,25 @@ class Pipeline {
       const { copilotToken, requestId } = auth;
 
       const inboundHeaders: Record<string, string | undefined> = {};
-      for (const { name } of cfg.headerTransform) {
-        inboundHeaders[name] = c.req.header(name);
-      }
+      c.req.raw.headers.forEach((value, key) => {
+        inboundHeaders[key] = value;
+      });
 
       let body = "";
       let parsed: Record<string, unknown> | null = null;
+      let headers = inboundHeaders;
 
       if (cfg.needsBody) {
         body = await c.req.text();
       }
 
-      // Cross-cutting transform first — may rewrite both headers and body
-      // before the per-header / per-body transforms run.
-      let workingHeaders = inboundHeaders;
-      if (cfg.requestTransform) {
-        const out = cfg.requestTransform({ headers: inboundHeaders, body });
-        workingHeaders = out.headers;
+      if (cfg.translate) {
+        const out = cfg.translate({ headers: inboundHeaders, body });
+        headers = out.headers;
         body = out.body;
       }
 
-      const headers: Record<string, string | undefined> = {};
-      for (const { name, transform } of cfg.headerTransform) {
-        headers[name] = transform(workingHeaders[name]);
-      }
-
       if (cfg.needsBody) {
-        if (cfg.bodyTransform) {
-          const result = cfg.bodyTransform(body);
-          body = typeof result === "string" ? result : result.body;
-        }
         try {
           parsed = JSON.parse(body);
         } catch {
@@ -285,8 +254,7 @@ class Pipeline {
 
       console.log(`[${requestId}] ${cfg.routeName}`);
 
-      const extraArgs = cfg.headerTransform.map(({ name }) => headers[name]);
-      const upstream = await call(copilotToken, body, ...extraArgs);
+      const upstream = await call(copilotToken, body, headers);
       return forwardUpstream(c, upstream, cfg.errorShape, requestId);
     };
   }

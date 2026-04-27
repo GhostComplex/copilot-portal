@@ -189,7 +189,7 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       bodyWithThinking,
-      undefined
+      expect.any(Object)
     );
   });
 
@@ -241,7 +241,10 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       expect.any(String),
-      "context-management-2025-06-27, some-unknown-beta, interleaved-thinking-2025-05-14"
+      expect.objectContaining({
+        "anthropic-beta":
+          "context-management-2025-06-27, some-unknown-beta, interleaved-thinking-2025-05-14",
+      })
     );
   });
 
@@ -259,11 +262,11 @@ describe("POST /v1/messages", () => {
       makeRequest(validAnthropicBody, { Authorization: "Bearer ghu_test" })
     );
 
-    expect(mockCreateMessages).toHaveBeenCalledWith(
-      "copilot-token",
-      expect.any(String),
-      undefined
-    );
+    const headers = mockCreateMessages.mock.calls[0][2] as Record<
+      string,
+      string | undefined
+    >;
+    expect(headers["anthropic-beta"]).toBeUndefined();
   });
 
   it("forwards unknown betas to upstream", async () => {
@@ -286,7 +289,9 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       expect.any(String),
-      "unknown-beta-1, unknown-beta-2"
+      expect.objectContaining({
+        "anthropic-beta": "unknown-beta-1, unknown-beta-2",
+      })
     );
   });
 

@@ -7,5 +7,5 @@ import { pipeline, openaiErrorShape } from "../../lib/proxy";
 
 export const handleResponses = pipeline("POST /v1/responses")
   .errorShape(openaiErrorShape)
-  .body()
+  .translate()
   .send(createResponses);

@@ -218,9 +218,12 @@ export async function createChatCompletions(
 export async function createMessages(
   copilotToken: string,
   body: string,
-  anthropicBeta?: string
+  inboundHeaders: Record<string, string | undefined> = {}
 ): Promise<Response> {
-  const headers = await buildCopilotHeaders(copilotToken, anthropicBeta);
+  const headers = await buildCopilotHeaders(
+    copilotToken,
+    inboundHeaders["anthropic-beta"]
+  );
   return fetch(`${COPILOT_API_BASE_URL}/v1/messages`, {
     method: "POST",
     headers,
