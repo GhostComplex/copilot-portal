@@ -185,11 +185,6 @@ class Pipeline {
     return this;
   }
 
-  /**
-   * Read the request body and optionally rewrite (headers, body) before
-   * forwarding upstream. Pair with `intercept` for routes that may instead
-   * short-circuit and handle the request locally.
-   */
   translate(fn?: Translate): this {
     this.config.needsBody = true;
     if (fn) this.config.translate = fn;
