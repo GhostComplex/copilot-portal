@@ -17,6 +17,7 @@
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:e2e": "vitest run --project e2e",
+    "list-models": "vitest run --project e2e tests/e2e/list-models.e2e.test.ts --reporter=verbose",
     "test:coverage": "vitest run --project unit --coverage"
   },
   "dependencies": {
