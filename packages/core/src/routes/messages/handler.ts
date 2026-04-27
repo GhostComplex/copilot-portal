@@ -57,4 +57,4 @@ export const handleMessages = pipeline("POST /v1/messages")
   .errorShape(anthropicErrorShape)
   .translate(rewriteRequest)
   .intercept(detectWebSearch, interceptWebSearch)
-  .forward(createMessages);
+  .send(createMessages);

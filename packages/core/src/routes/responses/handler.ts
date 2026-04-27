@@ -8,4 +8,4 @@ import { pipeline, openaiErrorShape } from "../../lib/proxy";
 export const handleResponses = pipeline("POST /v1/responses")
   .errorShape(openaiErrorShape)
   .translate()
-  .forward(createResponses);
+  .send(createResponses);
