@@ -1,10 +1,11 @@
 /**
- * Anthropic→Copilot translation for POST /v1/messages.
+ * Anthropic→Copilot request rewrites for POST /v1/messages.
  *
  * - `transformRequestBody`: pure body-only normalization.
  * - `rewriteContext1m`: cross-cutting (header + body) handling for the
  *   `context-1m-2025-08-07` beta. Lives outside the body-only transform
  *   because it has to read AND mutate the `anthropic-beta` header.
+ * - `rewriteRequest`: the entry point wired into `Pipeline.translate(...)`.
  */
 
 const DEFAULT_MAX_TOKENS = 16384;
@@ -133,7 +134,7 @@ export function rewriteContext1m(input: {
  * `transformRequestBody`). Order matters — the 1M rewrite mutates `model`,
  * which downstream body rewrites may key off.
  */
-export function translateMessages(input: {
+export function rewriteRequest(input: {
   headers: Record<string, string | undefined>;
   body: string;
 }): { headers: Record<string, string | undefined>; body: string } {

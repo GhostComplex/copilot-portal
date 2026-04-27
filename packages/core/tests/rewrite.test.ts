@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   transformRequestBody,
   rewriteContext1m,
-} from "../src/routes/messages/translate";
+} from "../src/routes/messages/rewrite";
 
 describe("transformRequestBody", () => {
   it("returns raw body and undefined model on invalid JSON", () => {

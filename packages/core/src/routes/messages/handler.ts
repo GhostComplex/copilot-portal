@@ -13,7 +13,7 @@ import {
   type PipelineContext,
 } from "../../lib/proxy";
 import { anthropicToSSE } from "../../lib/sse";
-import { translateMessages } from "./translate";
+import { rewriteRequest } from "./rewrite";
 import { hasWebSearchTool, withWebSearch } from "./server-tools";
 
 function detectWebSearch(parsed: Record<string, unknown> | null): boolean {
@@ -55,6 +55,6 @@ function streamResponse(response: Record<string, unknown>) {
 
 export const handleMessages = pipeline("POST /v1/messages")
   .errorShape(anthropicErrorShape)
-  .translate(translateMessages)
+  .translate(rewriteRequest)
   .intercept(detectWebSearch, interceptWebSearch)
   .forward(createMessages);
