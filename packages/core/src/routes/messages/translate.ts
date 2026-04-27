@@ -1,9 +1,10 @@
 /**
- * Pure Anthropic→Copilot translation for POST /v1/messages.
+ * Anthropic→Copilot translation for POST /v1/messages.
  *
- * Both helpers normalize an inbound Anthropic-format request into the shape
- * the Copilot upstream expects: `transformRequestBody` for the JSON body,
- * `filterAnthropicBeta` for the `anthropic-beta` header.
+ * - `transformRequestBody`: pure body-only normalization.
+ * - `rewriteContext1m`: cross-cutting (header + body) handling for the
+ *   `context-1m-2025-08-07` beta. Lives outside the body-only transform
+ *   because it has to read AND mutate the `anthropic-beta` header.
  */
 
 const DEFAULT_MAX_TOKENS = 16384;
@@ -33,17 +34,14 @@ export interface TransformResult {
   model: string | undefined;
 }
 
-export function transformRequestBody(
-  raw: string,
-  inboundHeaders: Record<string, string | undefined> = {}
-): TransformResult {
+export function transformRequestBody(raw: string): TransformResult {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw);
   } catch {
     return { body: raw, model: undefined };
   }
-  let model = typeof parsed.model === "string" ? parsed.model : undefined;
+  const model = typeof parsed.model === "string" ? parsed.model : undefined;
 
   let changed = false;
   const out: Record<string, unknown> = { ...parsed };
@@ -51,16 +49,6 @@ export function transformRequestBody(
   if (out.max_tokens == null) {
     out.max_tokens = DEFAULT_MAX_TOKENS;
     changed = true;
-  }
-
-  // 1M-context model rewrite: see ONE_M_MODEL_MAP comment above.
-  if (model && hasContext1mBeta(inboundHeaders["anthropic-beta"])) {
-    const mapped = ONE_M_MODEL_MAP[model];
-    if (mapped) {
-      out.model = mapped;
-      model = mapped;
-      changed = true;
-    }
   }
 
   // claude-opus-4.7 rejects `thinking.type=enabled`; rewrite to `adaptive`.
@@ -106,19 +94,35 @@ export function transformRequestBody(
 }
 
 /**
- * Filter the client's `anthropic-beta` header, removing betas the Copilot
- * upstream rejects. Returns `undefined` if nothing remains.
- *
- * - `context-1m-2025-08-07` is rejected upstream (400 "unsupported beta").
- * - All other betas are forwarded as-is.
+ * Cross-cutting: when the client sends `anthropic-beta: context-1m-2025-08-07`,
+ * upstream rejects the beta header but exposes the 1M variants as separate
+ * model ids. Strip the beta value from the header AND rewrite the model in
+ * the body, in lockstep.
  */
-export function filterAnthropicBeta(
-  raw: string | undefined | null
-): string | undefined {
-  if (!raw) return undefined;
-  const kept = raw
+export function rewriteContext1m(input: {
+  headers: Record<string, string | undefined>;
+  body: string;
+}): { headers: Record<string, string | undefined>; body: string } {
+  const beta = input.headers["anthropic-beta"];
+  if (!hasContext1mBeta(beta)) return input;
+
+  const remaining = beta!
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s !== CONTEXT_1M_BETA);
-  return kept.length > 0 ? kept.join(",") : undefined;
+  const newBeta = remaining.length > 0 ? remaining.join(",") : undefined;
+  const headers = { ...input.headers, "anthropic-beta": newBeta };
+
+  let body = input.body;
+  try {
+    const parsed = JSON.parse(input.body) as Record<string, unknown>;
+    const model = typeof parsed.model === "string" ? parsed.model : undefined;
+    if (model && ONE_M_MODEL_MAP[model]) {
+      body = JSON.stringify({ ...parsed, model: ONE_M_MODEL_MAP[model] });
+    }
+  } catch {
+    // invalid JSON — pass body through unchanged
+  }
+
+  return { headers, body };
 }

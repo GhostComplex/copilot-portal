@@ -145,10 +145,15 @@ export async function withCopilotToken(
 
 type HeaderTransform = (val: string | undefined) => string | undefined;
 
-type BodyTransform = (
-  raw: string,
-  inboundHeaders: Record<string, string | undefined>
-) => { body: string } | string;
+type BodyTransform = (raw: string) => { body: string } | string;
+
+// Cross-cutting transform for concerns that span both headers and body
+// (e.g. 1M-context handling, where a beta header decides a model rewrite).
+// Runs before per-header / per-body transforms so those stay pure.
+type RequestTransform = (input: {
+  headers: Record<string, string | undefined>;
+  body: string;
+}) => { headers: Record<string, string | undefined>; body: string };
 
 type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
 
@@ -163,6 +168,7 @@ interface PipelineConfig {
   errorShape: ErrorShape;
   headerTransform: { name: string; transform: HeaderTransform }[];
   bodyTransform: BodyTransform | null;
+  requestTransform: RequestTransform | null;
   intercept: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
     handle: InterceptHandler;
@@ -179,6 +185,7 @@ class Pipeline {
       errorShape: openaiErrorShape,
       headerTransform: [],
       bodyTransform: null,
+      requestTransform: null,
       intercept: null,
       needsBody: false,
     };
@@ -189,14 +196,23 @@ class Pipeline {
     return this;
   }
 
-  header(name: string, transform: HeaderTransform): this {
-    this.config.headerTransform.push({ name, transform });
+  header(name: string, transform?: HeaderTransform): this {
+    this.config.headerTransform.push({
+      name,
+      transform: transform ?? ((v) => v),
+    });
     return this;
   }
 
   body(transform?: BodyTransform): this {
     this.config.needsBody = true;
     if (transform) this.config.bodyTransform = transform;
+    return this;
+  }
+
+  requestTransform(transform: RequestTransform): this {
+    this.config.requestTransform = transform;
+    this.config.needsBody = true;
     return this;
   }
 
@@ -216,24 +232,36 @@ class Pipeline {
       if (!auth.ok) return auth.response;
       const { copilotToken, requestId } = auth;
 
-      const headers: Record<string, string | undefined> = {};
       const inboundHeaders: Record<string, string | undefined> = {};
-      for (const { name, transform } of cfg.headerTransform) {
-        const inbound = c.req.header(name);
-        inboundHeaders[name] = inbound;
-        headers[name] = transform(inbound);
+      for (const { name } of cfg.headerTransform) {
+        inboundHeaders[name] = c.req.header(name);
       }
 
       let body = "";
       let parsed: Record<string, unknown> | null = null;
 
       if (cfg.needsBody) {
-        const raw = await c.req.text();
+        body = await c.req.text();
+      }
+
+      // Cross-cutting transform first — may rewrite both headers and body
+      // before the per-header / per-body transforms run.
+      let workingHeaders = inboundHeaders;
+      if (cfg.requestTransform) {
+        const out = cfg.requestTransform({ headers: inboundHeaders, body });
+        workingHeaders = out.headers;
+        body = out.body;
+      }
+
+      const headers: Record<string, string | undefined> = {};
+      for (const { name, transform } of cfg.headerTransform) {
+        headers[name] = transform(workingHeaders[name]);
+      }
+
+      if (cfg.needsBody) {
         if (cfg.bodyTransform) {
-          const result = cfg.bodyTransform(raw, inboundHeaders);
+          const result = cfg.bodyTransform(body);
           body = typeof result === "string" ? result : result.body;
-        } else {
-          body = raw;
         }
         try {
           parsed = JSON.parse(body);

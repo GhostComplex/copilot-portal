@@ -5,8 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import app from "../src/index";
 
-// Mock network-touching services; keep pure helpers (filterAnthropicBeta,
-// TokenExchangeError) from the real module so tests exercise real logic.
+// Mock network-touching services; keep pure helpers (TokenExchangeError)
+// from the real module so tests exercise real logic.
 vi.mock("../src/services/copilot", async (importActual) => {
   const actual = await importActual<typeof import("../src/services/copilot")>();
   return {
@@ -241,7 +241,7 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       expect.any(String),
-      "context-management-2025-06-27,some-unknown-beta,interleaved-thinking-2025-05-14"
+      "context-management-2025-06-27, some-unknown-beta, interleaved-thinking-2025-05-14"
     );
   });
 
@@ -286,7 +286,7 @@ describe("POST /v1/messages", () => {
     expect(mockCreateMessages).toHaveBeenCalledWith(
       "copilot-token",
       expect.any(String),
-      "unknown-beta-1,unknown-beta-2"
+      "unknown-beta-1, unknown-beta-2"
     );
   });
 

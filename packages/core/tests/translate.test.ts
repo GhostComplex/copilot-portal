@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   transformRequestBody,
-  filterAnthropicBeta,
+  rewriteContext1m,
 } from "../src/routes/messages/translate";
 
 describe("transformRequestBody", () => {
@@ -142,112 +142,78 @@ describe("transformRequestBody", () => {
     const sent = JSON.parse(transformRequestBody(raw).body);
     expect("output_config" in sent).toBe(false);
   });
-
-  describe("1M-context model rewrite", () => {
-    const oneMBeta = { "anthropic-beta": "context-1m-2025-08-07" };
-
-    it("rewrites claude-opus-4.6 → claude-opus-4.6-1m when 1M beta present", () => {
-      const raw = JSON.stringify({
-        model: "claude-opus-4.6",
-        max_tokens: 16384,
-      });
-      const result = transformRequestBody(raw, oneMBeta);
-      expect(JSON.parse(result.body).model).toBe("claude-opus-4.6-1m");
-      expect(result.model).toBe("claude-opus-4.6-1m");
-    });
-
-    it("rewrites claude-opus-4.7 → claude-opus-4.7-1m-internal when 1M beta present", () => {
-      const raw = JSON.stringify({
-        model: "claude-opus-4.7",
-        max_tokens: 16384,
-      });
-      const result = transformRequestBody(raw, oneMBeta);
-      expect(JSON.parse(result.body).model).toBe("claude-opus-4.7-1m-internal");
-      expect(result.model).toBe("claude-opus-4.7-1m-internal");
-    });
-
-    it("does not rewrite when 1M beta is absent", () => {
-      const raw = JSON.stringify({
-        model: "claude-opus-4.7",
-        max_tokens: 16384,
-      });
-      expect(JSON.parse(transformRequestBody(raw).body).model).toBe(
-        "claude-opus-4.7"
-      );
-    });
-
-    it("does not rewrite unsupported models even with 1M beta", () => {
-      const raw = JSON.stringify({
-        model: "claude-sonnet-4",
-        max_tokens: 16384,
-      });
-      expect(JSON.parse(transformRequestBody(raw, oneMBeta).body).model).toBe(
-        "claude-sonnet-4"
-      );
-    });
-
-    it("rewrite triggers when 1M beta appears alongside other betas", () => {
-      const raw = JSON.stringify({
-        model: "claude-opus-4.7",
-        max_tokens: 16384,
-      });
-      const result = transformRequestBody(raw, {
-        "anthropic-beta": "context-management-2025-06-27,context-1m-2025-08-07",
-      });
-      expect(JSON.parse(result.body).model).toBe("claude-opus-4.7-1m-internal");
-    });
-
-    it("rewritten 4.7-1m-internal still gets thinking.type=enabled → adaptive", () => {
-      const raw = JSON.stringify({
-        model: "claude-opus-4.7",
-        max_tokens: 16384,
-        thinking: { type: "enabled", budget_tokens: 5000 },
-      });
-      const sent = JSON.parse(transformRequestBody(raw, oneMBeta).body);
-      expect(sent.model).toBe("claude-opus-4.7-1m-internal");
-      expect(sent.thinking).toEqual({ type: "adaptive" });
-    });
-  });
 });
 
-describe("filterAnthropicBeta", () => {
-  it("returns undefined for empty input", () => {
-    expect(filterAnthropicBeta(undefined)).toBeUndefined();
-    expect(filterAnthropicBeta(null)).toBeUndefined();
-    expect(filterAnthropicBeta("")).toBeUndefined();
+describe("rewriteContext1m", () => {
+  const body46 = JSON.stringify({
+    model: "claude-opus-4.6",
+    max_tokens: 16384,
+  });
+  const body47 = JSON.stringify({
+    model: "claude-opus-4.7",
+    max_tokens: 16384,
   });
 
-  it("keeps supported betas", () => {
-    expect(
-      filterAnthropicBeta(
-        "context-management-2025-06-27,advanced-tool-use-2025-11-20"
-      )
-    ).toBe("context-management-2025-06-27,advanced-tool-use-2025-11-20");
+  it("passes input through unchanged when context-1m beta is absent", () => {
+    const input = { headers: {}, body: body47 };
+    expect(rewriteContext1m(input)).toEqual(input);
   });
 
-  it("passes through unknown betas", () => {
-    expect(filterAnthropicBeta("some-unknown-beta")).toBe("some-unknown-beta");
+  it("rewrites claude-opus-4.6 → claude-opus-4.6-1m and strips beta", () => {
+    const out = rewriteContext1m({
+      headers: { "anthropic-beta": "context-1m-2025-08-07" },
+      body: body46,
+    });
+    expect(out.headers["anthropic-beta"]).toBeUndefined();
+    expect(JSON.parse(out.body).model).toBe("claude-opus-4.6-1m");
   });
 
-  it("passes through interleaved-thinking beta", () => {
-    expect(filterAnthropicBeta("interleaved-thinking-2025-05-14")).toBe(
-      "interleaved-thinking-2025-05-14"
-    );
+  it("rewrites claude-opus-4.7 → claude-opus-4.7-1m-internal and strips beta", () => {
+    const out = rewriteContext1m({
+      headers: { "anthropic-beta": "context-1m-2025-08-07" },
+      body: body47,
+    });
+    expect(out.headers["anthropic-beta"]).toBeUndefined();
+    expect(JSON.parse(out.body).model).toBe("claude-opus-4.7-1m-internal");
   });
 
-  it("drops context-1m beta", () => {
-    expect(filterAnthropicBeta("context-1m-2025-08-07")).toBeUndefined();
+  it("preserves other betas alongside context-1m", () => {
+    const out = rewriteContext1m({
+      headers: {
+        "anthropic-beta": "context-management-2025-06-27,context-1m-2025-08-07",
+      },
+      body: body47,
+    });
+    expect(out.headers["anthropic-beta"]).toBe("context-management-2025-06-27");
+    expect(JSON.parse(out.body).model).toBe("claude-opus-4.7-1m-internal");
   });
 
-  it("drops context-1m but keeps other betas", () => {
-    expect(
-      filterAnthropicBeta("context-1m-2025-08-07,context-management-2025-06-27")
-    ).toBe("context-management-2025-06-27");
+  it("leaves model untouched for unsupported models but still strips beta", () => {
+    const out = rewriteContext1m({
+      headers: { "anthropic-beta": "context-1m-2025-08-07" },
+      body: JSON.stringify({ model: "claude-sonnet-4", max_tokens: 16384 }),
+    });
+    expect(out.headers["anthropic-beta"]).toBeUndefined();
+    expect(JSON.parse(out.body).model).toBe("claude-sonnet-4");
   });
 
-  it("trims whitespace around entries", () => {
-    expect(
-      filterAnthropicBeta(" context-management-2025-06-27 , some-other-beta ")
-    ).toBe("context-management-2025-06-27,some-other-beta");
+  it("trims whitespace around comma-separated betas", () => {
+    const out = rewriteContext1m({
+      headers: {
+        "anthropic-beta":
+          " context-1m-2025-08-07 , context-management-2025-06-27 ",
+      },
+      body: body47,
+    });
+    expect(out.headers["anthropic-beta"]).toBe("context-management-2025-06-27");
+  });
+
+  it("passes body through unchanged on invalid JSON", () => {
+    const out = rewriteContext1m({
+      headers: { "anthropic-beta": "context-1m-2025-08-07" },
+      body: "not json",
+    });
+    expect(out.body).toBe("not json");
+    expect(out.headers["anthropic-beta"]).toBeUndefined();
   });
 });
