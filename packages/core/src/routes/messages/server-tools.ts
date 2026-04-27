@@ -94,7 +94,7 @@ const MAX_TOOL_LOOPS = 1;
 export async function withWebSearch(
   copilotToken: string,
   parsed: Record<string, unknown>,
-  inboundHeaders: Record<string, string | undefined> = {}
+  extras: Record<string, string | undefined> = {}
 ): Promise<AnthropicResponse> {
   const messages = [...((parsed.messages as AnthropicMessage[]) ?? [])];
 
@@ -110,7 +110,7 @@ export async function withWebSearch(
     const upstream = await createMessages(
       copilotToken,
       JSON.stringify(payload),
-      inboundHeaders
+      extras
     );
 
     if (!upstream.ok) {
@@ -165,7 +165,7 @@ export async function withWebSearch(
   const final = await createMessages(
     copilotToken,
     JSON.stringify(payload),
-    inboundHeaders
+    extras
   );
   if (!final.ok) {
     const errText = await final.text();

@@ -60,7 +60,7 @@ export interface PipelineContext {
   requestId: string;
   body: string;
   parsed: Record<string, unknown> | null;
-  headers: Record<string, string | undefined>;
+  extras: Record<string, string | undefined>;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,17 +143,21 @@ export async function withCopilotToken(
 // Pipeline builder
 // ---------------------------------------------------------------------------
 
+// Translate reads the full inbound headers + body, returns a body to forward
+// upstream and an `extras` map of headers the route wants merged into the
+// upstream request. Routes that don't need to forward any extra headers
+// either return `extras: {}` or omit translate entirely.
 type Translate = (input: {
   headers: Record<string, string | undefined>;
   body: string;
-}) => { headers: Record<string, string | undefined>; body: string };
+}) => { extras: Record<string, string | undefined>; body: string };
 
 type Intercept = (ctx: PipelineContext) => Promise<Response>;
 
 type Send = (
   copilotToken: string,
   body: string,
-  headers: Record<string, string | undefined>
+  extras: Record<string, string | undefined>
 ) => Promise<Response>;
 
 interface PipelineConfig {
@@ -214,7 +218,7 @@ class Pipeline {
 
       let body = "";
       let parsed: Record<string, unknown> | null = null;
-      let headers = inboundHeaders;
+      let extras: Record<string, string | undefined> = {};
 
       if (cfg.needsBody) {
         body = await c.req.text();
@@ -222,7 +226,7 @@ class Pipeline {
 
       if (cfg.translate) {
         const out = cfg.translate({ headers: inboundHeaders, body });
-        headers = out.headers;
+        extras = out.extras;
         body = out.body;
       }
 
@@ -240,7 +244,7 @@ class Pipeline {
         requestId,
         body,
         parsed,
-        headers,
+        extras,
       };
 
       if (cfg.intercept?.detect(parsed)) {
@@ -249,7 +253,7 @@ class Pipeline {
 
       console.log(`[${requestId}] ${cfg.routeName}`);
 
-      const upstream = await call(copilotToken, body, headers);
+      const upstream = await call(copilotToken, body, extras);
       return forwardUpstream(c, upstream, cfg.errorShape, requestId);
     };
   }

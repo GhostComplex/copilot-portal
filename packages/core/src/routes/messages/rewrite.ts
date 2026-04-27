@@ -133,13 +133,22 @@ export function rewriteContext1m(input: {
  * (see `rewriteContext1m`) followed by body normalization (see
  * `transformRequestBody`). Order matters — the 1M rewrite mutates `model`,
  * which downstream body rewrites may key off.
+ *
+ * Returns `extras` containing only headers we want forwarded to upstream
+ * (currently just the post-rewrite `anthropic-beta`, if any).
  */
 export function rewriteRequest(input: {
   headers: Record<string, string | undefined>;
   body: string;
-}): { headers: Record<string, string | undefined>; body: string } {
+}): { extras: Record<string, string | undefined>; body: string } {
   const ctx1m = rewriteContext1m(input);
   const result = transformRequestBody(ctx1m.body);
   const body = typeof result === "string" ? result : result.body;
-  return { headers: ctx1m.headers, body };
+
+  const extras: Record<string, string | undefined> = {};
+  if (ctx1m.headers["anthropic-beta"] !== undefined) {
+    extras["anthropic-beta"] = ctx1m.headers["anthropic-beta"];
+  }
+
+  return { extras, body };
 }

@@ -30,7 +30,7 @@ async function interceptWebSearch(ctx: PipelineContext): Promise<Response> {
     const response = await withWebSearch(
       ctx.copilotToken,
       ctx.parsed!,
-      ctx.headers
+      ctx.extras
     );
     return wantStream ? streamResponse(response) : ctx.c.json(response);
   } catch (err) {

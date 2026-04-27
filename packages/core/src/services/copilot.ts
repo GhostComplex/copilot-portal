@@ -88,11 +88,10 @@ async function fetchVSCodeVersion(): Promise<string> {
 // ---------------------------------------------------------------------------
 
 async function buildCopilotHeaders(
-  copilotToken: string,
-  betaHeader?: string
+  copilotToken: string
 ): Promise<Record<string, string>> {
   const editorVersion = await fetchVSCodeVersion();
-  const headers: Record<string, string> = {
+  return {
     Authorization: `Bearer ${copilotToken}`,
     "Content-Type": "application/json",
     "User-Agent": USER_AGENT,
@@ -102,8 +101,17 @@ async function buildCopilotHeaders(
     "Copilot-Integration-Id": "vscode-chat",
     "Openai-Intent": "conversation-panel",
   };
-  if (betaHeader) headers["anthropic-beta"] = betaHeader;
-  return headers;
+}
+
+function mergeExtras(
+  base: Record<string, string>,
+  extras: Record<string, string | undefined>
+): Record<string, string> {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(extras)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
 }
 
 function buildGitHubHeaders(githubToken: string): Record<string, string> {
@@ -218,12 +226,9 @@ export async function createChatCompletions(
 export async function createMessages(
   copilotToken: string,
   body: string,
-  inboundHeaders: Record<string, string | undefined> = {}
+  extras: Record<string, string | undefined> = {}
 ): Promise<Response> {
-  const headers = await buildCopilotHeaders(
-    copilotToken,
-    inboundHeaders["anthropic-beta"]
-  );
+  const headers = mergeExtras(await buildCopilotHeaders(copilotToken), extras);
   return fetch(`${COPILOT_API_BASE_URL}/v1/messages`, {
     method: "POST",
     headers,
