@@ -233,6 +233,27 @@ describe("rewriteRequest (extras)", () => {
     expect(out.extras["anthropic-beta"]).toBeUndefined();
   });
 
+  it("strips fine-grained-tool-streaming-2025-05-14 from anthropic-beta extras", () => {
+    const out = rewriteRequest({
+      headers: { "anthropic-beta": "fine-grained-tool-streaming-2025-05-14" },
+      body,
+    });
+    expect(out.extras["anthropic-beta"]).toBeUndefined();
+  });
+
+  it("strips multiple rejected betas in one header", () => {
+    const out = rewriteRequest({
+      headers: {
+        "anthropic-beta":
+          "context-management-2025-06-27,fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14",
+      },
+      body,
+    });
+    expect(out.extras["anthropic-beta"]).toBe(
+      "interleaved-thinking-2025-05-14"
+    );
+  });
+
   it("keeps other betas alongside stripping context-management", () => {
     const out = rewriteRequest({
       headers: {

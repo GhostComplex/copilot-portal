@@ -14,7 +14,10 @@ const CONTEXT_1M_BETA = "context-1m-2025-08-07";
 
 // Beta values upstream rejects outright. context-1m is NOT in this set —
 // it has its own model-rewrite path in rewriteContext1m.
-const UPSTREAM_REJECTED_BETAS = new Set(["context-management-2025-06-27"]);
+const UPSTREAM_REJECTED_BETAS = new Set([
+  "context-management-2025-06-27",
+  "fine-grained-tool-streaming-2025-05-14",
+]);
 
 // When the client requests 1M context via `anthropic-beta: context-1m-2025-08-07`,
 // upstream rejects the beta header. The 1M variants are exposed as separate
