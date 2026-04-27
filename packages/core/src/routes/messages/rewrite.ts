@@ -12,6 +12,10 @@ const DEFAULT_MAX_TOKENS = 16384;
 
 const CONTEXT_1M_BETA = "context-1m-2025-08-07";
 
+// Beta values upstream rejects outright. context-1m is NOT in this set —
+// it has its own model-rewrite path in rewriteContext1m.
+const UPSTREAM_REJECTED_BETAS = new Set(["context-management-2025-06-27"]);
+
 // When the client requests 1M context via `anthropic-beta: context-1m-2025-08-07`,
 // upstream rejects the beta header. The 1M variants are exposed as separate
 // model ids instead. Claude Code sends `claude-opus-4.X[1m]` which it expands
@@ -137,6 +141,15 @@ export function rewriteContext1m(input: {
  * Returns `extras` containing only headers we want forwarded to upstream
  * (currently just the post-rewrite `anthropic-beta`, if any).
  */
+function stripRejectedBetas(beta: string | undefined): string | undefined {
+  if (!beta) return undefined;
+  const kept = beta
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => !UPSTREAM_REJECTED_BETAS.has(s));
+  return kept.length > 0 ? kept.join(",") : undefined;
+}
+
 export function rewriteRequest(input: {
   headers: Record<string, string | undefined>;
   body: string;
@@ -145,9 +158,10 @@ export function rewriteRequest(input: {
   const result = transformRequestBody(ctx1m.body);
   const body = typeof result === "string" ? result : result.body;
 
+  const beta = stripRejectedBetas(ctx1m.headers["anthropic-beta"]);
   const extras: Record<string, string | undefined> = {};
-  if (ctx1m.headers["anthropic-beta"] !== undefined) {
-    extras["anthropic-beta"] = ctx1m.headers["anthropic-beta"];
+  if (beta !== undefined) {
+    extras["anthropic-beta"] = beta;
   }
 
   return { extras, body };

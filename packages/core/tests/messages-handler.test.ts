@@ -242,8 +242,7 @@ describe("POST /v1/messages", () => {
       "copilot-token",
       expect.any(String),
       expect.objectContaining({
-        "anthropic-beta":
-          "context-management-2025-06-27, some-unknown-beta, interleaved-thinking-2025-05-14",
+        "anthropic-beta": "some-unknown-beta,interleaved-thinking-2025-05-14",
       })
     );
   });
@@ -290,7 +289,7 @@ describe("POST /v1/messages", () => {
       "copilot-token",
       expect.any(String),
       expect.objectContaining({
-        "anthropic-beta": "unknown-beta-1, unknown-beta-2",
+        "anthropic-beta": "unknown-beta-1,unknown-beta-2",
       })
     );
   });

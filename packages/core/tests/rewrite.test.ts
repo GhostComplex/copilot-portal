@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   transformRequestBody,
   rewriteContext1m,
+  rewriteRequest,
 } from "../src/routes/messages/rewrite";
 
 describe("transformRequestBody", () => {
@@ -215,5 +216,48 @@ describe("rewriteContext1m", () => {
     });
     expect(out.body).toBe("not json");
     expect(out.headers["anthropic-beta"]).toBeUndefined();
+  });
+});
+
+describe("rewriteRequest (extras)", () => {
+  const body = JSON.stringify({
+    model: "claude-opus-4.7",
+    max_tokens: 16384,
+  });
+
+  it("strips context-management-2025-06-27 from anthropic-beta extras", () => {
+    const out = rewriteRequest({
+      headers: { "anthropic-beta": "context-management-2025-06-27" },
+      body,
+    });
+    expect(out.extras["anthropic-beta"]).toBeUndefined();
+  });
+
+  it("keeps other betas alongside stripping context-management", () => {
+    const out = rewriteRequest({
+      headers: {
+        "anthropic-beta":
+          "context-management-2025-06-27,interleaved-thinking-2025-05-14",
+      },
+      body,
+    });
+    expect(out.extras["anthropic-beta"]).toBe(
+      "interleaved-thinking-2025-05-14"
+    );
+  });
+
+  it("forwards unrelated betas unchanged", () => {
+    const out = rewriteRequest({
+      headers: { "anthropic-beta": "interleaved-thinking-2025-05-14" },
+      body,
+    });
+    expect(out.extras["anthropic-beta"]).toBe(
+      "interleaved-thinking-2025-05-14"
+    );
+  });
+
+  it("omits anthropic-beta from extras when no header was sent", () => {
+    const out = rewriteRequest({ headers: {}, body });
+    expect("anthropic-beta" in out.extras).toBe(false);
   });
 });
