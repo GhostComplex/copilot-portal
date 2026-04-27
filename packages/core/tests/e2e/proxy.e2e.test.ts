@@ -170,9 +170,17 @@ describe("E2E: proxy (localhost)", () => {
     expect(res.status).toBe(200);
   });
 
-  it("context-1m beta stripped by filter → 200", async () => {
+  it("claude-opus-4.6 + context-1m beta → rewritten to 1m model → 200", async () => {
     const res = await postMessages({
       model: "claude-opus-4.6",
+      beta: "context-1m-2025-08-07",
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("claude-opus-4.7 + context-1m beta → rewritten to 1m-internal → 200", async () => {
+    const res = await postMessages({
+      model: "claude-opus-4.7",
       beta: "context-1m-2025-08-07",
     });
     expect(res.status).toBe(200);

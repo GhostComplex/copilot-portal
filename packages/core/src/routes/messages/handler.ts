@@ -13,7 +13,7 @@ import {
   type PipelineContext,
 } from "../../lib/proxy";
 import { anthropicToSSE } from "../../lib/sse";
-import { transformRequestBody, filterAnthropicBeta } from "./translate";
+import { rewriteRequest } from "./rewrite";
 import { hasWebSearchTool, withWebSearch } from "./server-tools";
 
 function detectWebSearch(parsed: Record<string, unknown> | null): boolean {
@@ -30,7 +30,7 @@ async function interceptWebSearch(ctx: PipelineContext): Promise<Response> {
     const response = await withWebSearch(
       ctx.copilotToken,
       ctx.parsed!,
-      ctx.headers["anthropic-beta"]
+      ctx.extras
     );
     return wantStream ? streamResponse(response) : ctx.c.json(response);
   } catch (err) {
@@ -55,7 +55,6 @@ function streamResponse(response: Record<string, unknown>) {
 
 export const handleMessages = pipeline("POST /v1/messages")
   .errorShape(anthropicErrorShape)
-  .header("anthropic-beta", filterAnthropicBeta)
-  .body(transformRequestBody)
+  .translate(rewriteRequest)
   .intercept(detectWebSearch, interceptWebSearch)
   .send(createMessages);

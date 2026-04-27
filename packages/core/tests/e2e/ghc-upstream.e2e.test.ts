@@ -29,7 +29,11 @@ async function postUpstream(opts: {
     messages: [{ role: "user", content: "hi" }],
     ...opts.body,
   });
-  return createMessages(copilotToken, body, opts.beta);
+  return createMessages(
+    copilotToken,
+    body,
+    opts.beta ? { "anthropic-beta": opts.beta } : {}
+  );
 }
 
 describe("GHC upstream: anthropic-beta + thinking support matrix", () => {

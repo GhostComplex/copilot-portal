@@ -258,7 +258,8 @@ describe("POST /v1/responses", () => {
     expect(mockGetCopilotToken).toHaveBeenCalledWith("github-token");
     expect(mockCreateResponses).toHaveBeenCalledWith(
       "copilot-token",
-      JSON.stringify({ model: "gpt-4o-mini", input: "hi" })
+      JSON.stringify({ model: "gpt-4o-mini", input: "hi" }),
+      expect.any(Object)
     );
   });
 
@@ -411,7 +412,11 @@ describe("POST /v1/embeddings", () => {
 
     expect(res.status).toBe(200);
     expect(mockGetCopilotToken).toHaveBeenCalledWith("github-token");
-    expect(mockCreateEmbeddings).toHaveBeenCalledWith("copilot-token", body);
+    expect(mockCreateEmbeddings).toHaveBeenCalledWith(
+      "copilot-token",
+      body,
+      expect.any(Object)
+    );
   });
 
   it("returns error on token exchange failure", async () => {

@@ -60,7 +60,7 @@ export interface PipelineContext {
   requestId: string;
   body: string;
   parsed: Record<string, unknown> | null;
-  headers: Record<string, string | undefined>;
+  extras: Record<string, string | undefined>;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,26 +143,30 @@ export async function withCopilotToken(
 // Pipeline builder
 // ---------------------------------------------------------------------------
 
-type HeaderTransform = (val: string | undefined) => string | undefined;
+// Translate reads the full inbound headers + body, returns a body to forward
+// upstream and an `extras` map of headers the route wants merged into the
+// upstream request. Routes that don't need to forward any extra headers
+// either return `extras: {}` or omit translate entirely.
+type Translate = (input: {
+  headers: Record<string, string | undefined>;
+  body: string;
+}) => { extras: Record<string, string | undefined>; body: string };
 
-type BodyTransform = (raw: string) => { body: string } | string;
+type Intercept = (ctx: PipelineContext) => Promise<Response>;
 
-type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
-
-type SendFn = (
+type Send = (
   copilotToken: string,
   body: string,
-  ...extra: (string | undefined)[]
+  extras: Record<string, string | undefined>
 ) => Promise<Response>;
 
 interface PipelineConfig {
   routeName: string;
   errorShape: ErrorShape;
-  headerTransform: { name: string; transform: HeaderTransform }[];
-  bodyTransform: BodyTransform | null;
+  translate: Translate | null;
   intercept: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
-    handle: InterceptHandler;
+    handle: Intercept;
   } | null;
   needsBody: boolean;
 }
@@ -174,8 +178,7 @@ class Pipeline {
     this.config = {
       routeName,
       errorShape: openaiErrorShape,
-      headerTransform: [],
-      bodyTransform: null,
+      translate: null,
       intercept: null,
       needsBody: false,
     };
@@ -186,26 +189,21 @@ class Pipeline {
     return this;
   }
 
-  header(name: string, transform: HeaderTransform): this {
-    this.config.headerTransform.push({ name, transform });
-    return this;
-  }
-
-  body(transform?: BodyTransform): this {
+  translate(fn?: Translate): this {
     this.config.needsBody = true;
-    if (transform) this.config.bodyTransform = transform;
+    if (fn) this.config.translate = fn;
     return this;
   }
 
   intercept(
     detect: (parsed: Record<string, unknown> | null) => boolean,
-    handle: InterceptHandler
+    handle: Intercept
   ): this {
     this.config.intercept = { detect, handle };
     return this;
   }
 
-  send(call: SendFn): (c: Context) => Promise<Response> {
+  send(call: Send): (c: Context) => Promise<Response> {
     const cfg = { ...this.config };
 
     return async (c: Context) => {
@@ -213,22 +211,26 @@ class Pipeline {
       if (!auth.ok) return auth.response;
       const { copilotToken, requestId } = auth;
 
-      const headers: Record<string, string | undefined> = {};
-      for (const { name, transform } of cfg.headerTransform) {
-        headers[name] = transform(c.req.header(name));
-      }
+      const inboundHeaders: Record<string, string | undefined> = {};
+      c.req.raw.headers.forEach((value, key) => {
+        inboundHeaders[key] = value;
+      });
 
       let body = "";
       let parsed: Record<string, unknown> | null = null;
+      let extras: Record<string, string | undefined> = {};
 
       if (cfg.needsBody) {
-        const raw = await c.req.text();
-        if (cfg.bodyTransform) {
-          const result = cfg.bodyTransform(raw);
-          body = typeof result === "string" ? result : result.body;
-        } else {
-          body = raw;
-        }
+        body = await c.req.text();
+      }
+
+      if (cfg.translate) {
+        const out = cfg.translate({ headers: inboundHeaders, body });
+        extras = out.extras;
+        body = out.body;
+      }
+
+      if (cfg.needsBody) {
         try {
           parsed = JSON.parse(body);
         } catch {
@@ -242,7 +244,7 @@ class Pipeline {
         requestId,
         body,
         parsed,
-        headers,
+        extras,
       };
 
       if (cfg.intercept?.detect(parsed)) {
@@ -251,8 +253,7 @@ class Pipeline {
 
       console.log(`[${requestId}] ${cfg.routeName}`);
 
-      const extraArgs = cfg.headerTransform.map(({ name }) => headers[name]);
-      const upstream = await call(copilotToken, body, ...extraArgs);
+      const upstream = await call(copilotToken, body, extras);
       return forwardUpstream(c, upstream, cfg.errorShape, requestId);
     };
   }
