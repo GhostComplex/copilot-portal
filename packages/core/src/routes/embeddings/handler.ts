@@ -8,4 +8,4 @@ import { pipeline, openaiErrorShape } from "../../lib/proxy";
 export const handleEmbeddings = pipeline("POST /v1/embeddings")
   .errorShape(openaiErrorShape)
   .translate()
-  .send(createEmbeddings);
+  .forward(createEmbeddings);

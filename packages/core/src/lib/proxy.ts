@@ -150,7 +150,7 @@ type Translate = (input: {
 
 type Intercept = (ctx: PipelineContext) => Promise<Response>;
 
-type SendFn = (
+type Forward = (
   copilotToken: string,
   body: string,
   headers: Record<string, string | undefined>
@@ -199,7 +199,7 @@ class Pipeline {
     return this;
   }
 
-  send(call: SendFn): (c: Context) => Promise<Response> {
+  forward(call: Forward): (c: Context) => Promise<Response> {
     const cfg = { ...this.config };
 
     return async (c: Context) => {
