@@ -8,19 +8,42 @@
 
 const DEFAULT_MAX_TOKENS = 16384;
 
+const CONTEXT_1M_BETA = "context-1m-2025-08-07";
+
+// When the client requests 1M context via `anthropic-beta: context-1m-2025-08-07`,
+// upstream rejects the beta header. The 1M variants are exposed as separate
+// model ids instead. Claude Code sends `claude-opus-4.X[1m]` which it expands
+// client-side to base model + this beta header — the rewrite below maps that
+// onto the upstream's actual 1M model ids.
+const ONE_M_MODEL_MAP: Record<string, string> = {
+  "claude-opus-4.6": "claude-opus-4.6-1m",
+  "claude-opus-4.7": "claude-opus-4.7-1m-internal",
+};
+
+function hasContext1mBeta(beta: string | undefined): boolean {
+  if (!beta) return false;
+  return beta
+    .split(",")
+    .map((s) => s.trim())
+    .includes(CONTEXT_1M_BETA);
+}
+
 export interface TransformResult {
   body: string;
   model: string | undefined;
 }
 
-export function transformRequestBody(raw: string): TransformResult {
+export function transformRequestBody(
+  raw: string,
+  inboundHeaders: Record<string, string | undefined> = {}
+): TransformResult {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw);
   } catch {
     return { body: raw, model: undefined };
   }
-  const model = typeof parsed.model === "string" ? parsed.model : undefined;
+  let model = typeof parsed.model === "string" ? parsed.model : undefined;
 
   let changed = false;
   const out: Record<string, unknown> = { ...parsed };
@@ -28,6 +51,16 @@ export function transformRequestBody(raw: string): TransformResult {
   if (out.max_tokens == null) {
     out.max_tokens = DEFAULT_MAX_TOKENS;
     changed = true;
+  }
+
+  // 1M-context model rewrite: see ONE_M_MODEL_MAP comment above.
+  if (model && hasContext1mBeta(inboundHeaders["anthropic-beta"])) {
+    const mapped = ONE_M_MODEL_MAP[model];
+    if (mapped) {
+      out.model = mapped;
+      model = mapped;
+      changed = true;
+    }
   }
 
   // claude-opus-4.7 rejects `thinking.type=enabled`; rewrite to `adaptive`.
@@ -86,6 +119,6 @@ export function filterAnthropicBeta(
   const kept = raw
     .split(",")
     .map((s) => s.trim())
-    .filter((s) => s !== "context-1m-2025-08-07");
+    .filter((s) => s !== CONTEXT_1M_BETA);
   return kept.length > 0 ? kept.join(",") : undefined;
 }

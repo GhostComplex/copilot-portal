@@ -142,6 +142,72 @@ describe("transformRequestBody", () => {
     const sent = JSON.parse(transformRequestBody(raw).body);
     expect("output_config" in sent).toBe(false);
   });
+
+  describe("1M-context model rewrite", () => {
+    const oneMBeta = { "anthropic-beta": "context-1m-2025-08-07" };
+
+    it("rewrites claude-opus-4.6 → claude-opus-4.6-1m when 1M beta present", () => {
+      const raw = JSON.stringify({
+        model: "claude-opus-4.6",
+        max_tokens: 16384,
+      });
+      const result = transformRequestBody(raw, oneMBeta);
+      expect(JSON.parse(result.body).model).toBe("claude-opus-4.6-1m");
+      expect(result.model).toBe("claude-opus-4.6-1m");
+    });
+
+    it("rewrites claude-opus-4.7 → claude-opus-4.7-1m-internal when 1M beta present", () => {
+      const raw = JSON.stringify({
+        model: "claude-opus-4.7",
+        max_tokens: 16384,
+      });
+      const result = transformRequestBody(raw, oneMBeta);
+      expect(JSON.parse(result.body).model).toBe("claude-opus-4.7-1m-internal");
+      expect(result.model).toBe("claude-opus-4.7-1m-internal");
+    });
+
+    it("does not rewrite when 1M beta is absent", () => {
+      const raw = JSON.stringify({
+        model: "claude-opus-4.7",
+        max_tokens: 16384,
+      });
+      expect(JSON.parse(transformRequestBody(raw).body).model).toBe(
+        "claude-opus-4.7"
+      );
+    });
+
+    it("does not rewrite unsupported models even with 1M beta", () => {
+      const raw = JSON.stringify({
+        model: "claude-sonnet-4",
+        max_tokens: 16384,
+      });
+      expect(JSON.parse(transformRequestBody(raw, oneMBeta).body).model).toBe(
+        "claude-sonnet-4"
+      );
+    });
+
+    it("rewrite triggers when 1M beta appears alongside other betas", () => {
+      const raw = JSON.stringify({
+        model: "claude-opus-4.7",
+        max_tokens: 16384,
+      });
+      const result = transformRequestBody(raw, {
+        "anthropic-beta": "context-management-2025-06-27,context-1m-2025-08-07",
+      });
+      expect(JSON.parse(result.body).model).toBe("claude-opus-4.7-1m-internal");
+    });
+
+    it("rewritten 4.7-1m-internal still gets thinking.type=enabled → adaptive", () => {
+      const raw = JSON.stringify({
+        model: "claude-opus-4.7",
+        max_tokens: 16384,
+        thinking: { type: "enabled", budget_tokens: 5000 },
+      });
+      const sent = JSON.parse(transformRequestBody(raw, oneMBeta).body);
+      expect(sent.model).toBe("claude-opus-4.7-1m-internal");
+      expect(sent.thinking).toEqual({ type: "adaptive" });
+    });
+  });
 });
 
 describe("filterAnthropicBeta", () => {

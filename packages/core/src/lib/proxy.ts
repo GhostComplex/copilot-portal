@@ -145,7 +145,10 @@ export async function withCopilotToken(
 
 type HeaderTransform = (val: string | undefined) => string | undefined;
 
-type BodyTransform = (raw: string) => { body: string } | string;
+type BodyTransform = (
+  raw: string,
+  inboundHeaders: Record<string, string | undefined>
+) => { body: string } | string;
 
 type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
 
@@ -214,8 +217,11 @@ class Pipeline {
       const { copilotToken, requestId } = auth;
 
       const headers: Record<string, string | undefined> = {};
+      const inboundHeaders: Record<string, string | undefined> = {};
       for (const { name, transform } of cfg.headerTransform) {
-        headers[name] = transform(c.req.header(name));
+        const inbound = c.req.header(name);
+        inboundHeaders[name] = inbound;
+        headers[name] = transform(inbound);
       }
 
       let body = "";
@@ -224,7 +230,7 @@ class Pipeline {
       if (cfg.needsBody) {
         const raw = await c.req.text();
         if (cfg.bodyTransform) {
-          const result = cfg.bodyTransform(raw);
+          const result = cfg.bodyTransform(raw, inboundHeaders);
           body = typeof result === "string" ? result : result.body;
         } else {
           body = raw;
