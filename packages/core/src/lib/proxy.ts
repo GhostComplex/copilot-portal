@@ -148,7 +148,7 @@ type Translate = (input: {
   body: string;
 }) => { headers: Record<string, string | undefined>; body: string };
 
-type InterceptHandler = (ctx: PipelineContext) => Promise<Response>;
+type Intercept = (ctx: PipelineContext) => Promise<Response>;
 
 type SendFn = (
   copilotToken: string,
@@ -162,7 +162,7 @@ interface PipelineConfig {
   translate: Translate | null;
   intercept: {
     detect: (parsed: Record<string, unknown> | null) => boolean;
-    handle: InterceptHandler;
+    handle: Intercept;
   } | null;
   needsBody: boolean;
 }
@@ -198,7 +198,7 @@ class Pipeline {
 
   intercept(
     detect: (parsed: Record<string, unknown> | null) => boolean,
-    handle: InterceptHandler
+    handle: Intercept
   ): this {
     this.config.intercept = { detect, handle };
     return this;
