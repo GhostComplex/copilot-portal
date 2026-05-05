@@ -17,6 +17,7 @@ const CONTEXT_1M_BETA = "context-1m-2025-08-07";
 const UPSTREAM_REJECTED_BETAS = new Set([
   "context-management-2025-06-27",
   "fine-grained-tool-streaming-2025-05-14",
+  "advisor-tool-2026-03-01",
 ]);
 
 // When the client requests 1M context via `anthropic-beta: context-1m-2025-08-07`,
